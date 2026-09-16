@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.2**
+**IMPL-03 — Project & File Intelligence v0.3**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships and lexical retrieval. IMPL-02 established normalized conversations, provider-neutral imports, continuity, candidate review, project evidence, timelines and re-entry briefs.
 
@@ -14,9 +14,11 @@ Discovery is deliberately **read-only**. It does not move, rename, delete or exe
 
 Project inspection is intentionally evidence-based rather than pretending to understand an entire codebase. Current structural evidence includes file/code counts, dependency markers, README-derived summaries, likely entrypoints, bounded content hashes, lightweight Python/JavaScript/TypeScript import hints, and Git branch/HEAD metadata read directly from `.git` files.
 
-Rescans are repeatable: projects are keyed by root location and artifacts by file location. Artifact state changes are now preserved as append-only `artifact_events`, so a later scan can show that a file changed instead of silently erasing its prior observed hash/mtime.
+Rescans are repeatable: projects are keyed by root location and artifacts by file location. Artifact state changes are preserved as append-only `artifact_events`, so a later scan can show that a file changed instead of silently erasing its prior observed hash/mtime.
 
-A deterministic `project-report` CLI command exposes the stored project evidence, registered artifacts and project events without executing project code.
+Project/conversation continuity is now explicit rather than inferred silently. A known project and conversation can be linked with evidence, and accepted candidate projection also creates that continuity link. `reentry-project` and `project-report` can therefore expose the conversation trail alongside project artifacts and events.
+
+A deterministic `project-report` CLI command exposes the stored project evidence, registered artifacts, linked conversations and project events without executing project code.
 
 ## Design principles
 
@@ -37,6 +39,7 @@ A deterministic `project-report` CLI command exposes the stored project evidence
 15. Treat filesystem discovery as a semantic overlay, not a filesystem cleanup operation.
 16. Do not execute discovered code as part of project intelligence.
 17. Treat observed Git metadata as evidence, not as a claim about project health or quality.
+18. Make project↔conversation continuity explicit when evidence supports the relationship.
 
 ## Status
 
@@ -51,11 +54,12 @@ A deterministic `project-report` CLI command exposes the stored project evidence
 - **IMPL-03 structural evidence:** dependency markers, likely entrypoints, lightweight import hints and Git branch/HEAD metadata implemented.
 - **IMPL-03 artifact change history:** implemented with append-only artifact events and idempotent repeated scans.
 - **IMPL-03 project report:** implemented as a deterministic CLI view of stored structural evidence.
+- **IMPL-03 project↔conversation continuity:** explicit linking and candidate-backed linking implemented; re-entry/report surfaces linked conversations.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
 
 ## IMPL-03 completion gate
 
-Before IMPL-03 is declared complete, discovery must be exercised against representative real workspaces, project-to-conversation continuity must be validated, and the project-state evidence model must be hardened. Git evidence and artifact-change tracking are now implemented. Discovery must remain non-destructive.
+Before IMPL-03 is declared complete, discovery must be exercised against representative real workspaces, project-state evidence must be hardened, and the project-root heuristics must be reviewed for workspace-level false positives. Git evidence, artifact-change tracking, project reports and explicit project-to-conversation continuity are now implemented. Discovery must remain non-destructive.
 
 ## Roadmap
 
