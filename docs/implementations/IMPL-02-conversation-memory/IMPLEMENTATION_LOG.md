@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.8
+v0.9
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role-aware candidate extraction, historical project events, and richer re-import provenance implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, and normalized ChatGPT source timestamps implemented.
 
 ## Completed
 
@@ -28,6 +28,9 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - ChatGPT export importer
 - `src/memory_os/adapters.py`
   - ChatGPT export normalization
+  - epoch timestamp normalization to UTC ISO-8601
+  - message-level observed timestamps
+  - preservation of raw source timestamps and selected structural metadata
   - provider-neutral generic normalization boundary
 - `src/memory_os/continuity.py`
   - related-record traversal
@@ -59,6 +62,8 @@ In progress — normalized conversation storage, local import, graph linkage, ca
 - Tests
   - idempotent conversation import
   - richer provenance merge on re-import
+  - ChatGPT epoch timestamp normalization
+  - metadata persistence
   - source preservation
   - rollback behavior
   - conversation → project → artifact continuity
@@ -76,12 +81,14 @@ The timeline remains evidence-based. It does not yet reconstruct the complete se
 
 Candidate extraction is intentionally heuristic and conservative. It is not yet a semantic/LLM consolidation engine, and provider-specific adapters are still limited to verified input shapes.
 
+ChatGPT timestamp handling now preserves normalized UTC timestamps, but other providers still require verified adapters before provider-specific timestamp mapping is added.
+
 ## Next
 
 1. Add evidence-derived project events from imported conversations and project/file discovery.
 2. Validate against a real user export fixture before declaring IMPL-02 complete.
 3. Add provider adapters only from verified export formats; do not invent provider schemas.
-4. Begin stronger multi-hop continuity and cross-agent source reconciliation.
+4. Add stronger multi-hop continuity and cross-agent source reconciliation.
 5. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
 
 ## Safety
