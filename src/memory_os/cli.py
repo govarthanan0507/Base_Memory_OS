@@ -8,6 +8,7 @@ from .continuity import render_project_reentry_brief, render_reentry_brief
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
+from .evidence import record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
 from .timeline import render_project_timeline
 
@@ -66,14 +67,20 @@ def build_parser() -> argparse.ArgumentParser:
     candidates = sub.add_parser("extract-candidates", help="Extract and persist reviewable memory candidates")
     candidates.add_argument("conversation_id")
     candidates.add_argument("--limit", type=int, default=50)
+    candidates.add_argument("--project-id", default=None)
 
-    candidate_list = sub.add_parser("list-candidates", help="List memory candidates awaiting review")
+    candidate_list = sub.add_parser("list-candidates", help="List memory candidates")
     candidate_list.add_argument("--status", choices=("candidate", "accepted", "rejected", "all"), default="candidate")
     candidate_list.add_argument("--limit", type=int, default=50)
 
     review = sub.add_parser("review-candidate", help="Accept or reject a memory candidate")
     review.add_argument("candidate_id")
     review.add_argument("decision", choices=("accepted", "rejected"))
+
+    project_evidence = sub.add_parser("project-evidence", help="Project accepted conversation candidates into project history")
+    project_evidence.add_argument("conversation_id")
+    project_evidence.add_argument("project_id")
+    project_evidence.add_argument("--candidate-id", action="append", dest="candidate_ids", default=None)
 
     return parser
 
@@ -120,7 +127,7 @@ def main() -> int:
             print(render_project_timeline(store, args.project_id, args.limit))
         elif args.command == "extract-candidates":
             messages = get_messages(store, args.conversation_id)
-            ids = persist_candidates(store, args.conversation_id, messages)
+            ids = persist_candidates(store, args.conversation_id, messages, project_id=args.project_id)
             print(f"Persisted {len(ids)} candidate(s)")
             for candidate_id in ids:
                 print(candidate_id)
@@ -129,6 +136,13 @@ def main() -> int:
                 print(f"{row['candidate_id']} [{row['status']}] [{row['memory_type']}] {row['content']}")
         elif args.command == "review-candidate":
             print(store.review_candidate(args.candidate_id, args.decision))
+        elif args.command == "project-evidence":
+            event_ids = record_conversation_candidates_as_project_events(
+                store, args.conversation_id, args.project_id, candidate_ids=args.candidate_ids
+            )
+            print(f"Projected {len(event_ids)} accepted candidate event(s)")
+            for event_id in event_ids:
+                print(event_id)
     finally:
         store.close()
     return 0
