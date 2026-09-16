@@ -2,11 +2,11 @@
 
 ## Version
 
-v1.2
+v1.3
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, normalized ChatGPT source timestamps, reviewed-candidate project evidence, and CLI evidence projection implemented.
+Completion-gate preparation — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, normalized ChatGPT source timestamps, reviewed-candidate project evidence, CLI evidence projection, and an end-to-end integration test path are implemented.
 
 ## Completed
 
@@ -81,6 +81,11 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - accepted-candidate projection and idempotence
   - explicit project event inclusion in timeline
   - direct candidate source-message provenance assertion
+  - end-to-end ChatGPT import → candidate review → project evidence → timeline → re-entry path
+
+## Completion-gate status
+
+The complete IMPL-02 path is represented by tests, but a successful local/CI execution is still required before declaring runtime verification. The current execution environment has previously failed to provide a reliable full test run, so no passing runtime result is claimed here.
 
 ## Current limitation
 
@@ -92,17 +97,15 @@ Candidate extraction is intentionally heuristic and conservative. It is not yet 
 
 ChatGPT timestamp handling now preserves normalized UTC timestamps, but other providers still require verified adapters before provider-specific timestamp mapping is added.
 
-CLI workflow now exposes reviewed-candidate projection, but there is not yet a single end-to-end command that imports, extracts, reviews, projects, and renders a complete re-entry package automatically.
-
-A real user export fixture has not yet been committed; current tests use synthetic/sanitized data and test execution has not been successfully verified in the available execution environment.
+A real user export fixture has not yet been committed; current tests use synthetic/sanitized data.
 
 ## Next
 
-1. Add a deterministic end-to-end workflow command/test for import → extract → review → project evidence → timeline → re-entry.
-2. Validate against a real sanitized export fixture before declaring IMPL-02 complete.
+1. Run the IMPL-02 completion gate in a reliable local/CI environment.
+2. Validate against a real user export fixture (sanitized if necessary) before declaring IMPL-02 complete.
 3. Add provider adapters only from verified export formats; do not invent provider schemas.
-4. Add stronger multi-hop continuity and cross-agent source reconciliation.
-5. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
+4. Transition into IMPL-03 Project & File Intelligence: filesystem discovery, project boundary detection, code structure analysis, artifact registry enrichment, and Git metadata.
+5. Add stronger multi-hop continuity and cross-agent source reconciliation after project/file intelligence is established.
 
 ## Safety
 
