@@ -100,6 +100,12 @@ class MemoryStore:
                 status TEXT NOT NULL, confidence REAL NOT NULL,
                 summary TEXT NOT NULL, metadata_json TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS project_events (
+                event_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+                event_type TEXT NOT NULL, timestamp TEXT NOT NULL,
+                summary TEXT NOT NULL, metadata_json TEXT NOT NULL,
+                UNIQUE(project_id, event_type, timestamp, summary)
+            );
             CREATE TABLE IF NOT EXISTS artifacts (
                 artifact_id TEXT PRIMARY KEY, name TEXT NOT NULL, artifact_type TEXT NOT NULL,
                 location TEXT NOT NULL UNIQUE, content_hash TEXT, modified_at TEXT,
@@ -180,22 +186,57 @@ class MemoryStore:
         self.conn.commit()
         return candidate_id
 
+    def add_project_event(self, project_id: str, event_type: str, summary: str,
+                          timestamp: str | None = None,
+                          metadata: dict[str, Any] | None = None) -> str:
+        if not event_type.strip() or not summary.strip():
+            raise ValueError("event_type and summary must be non-empty")
+        event_id = stable_id(project_id, event_type.strip(), timestamp or utc_now(), summary.strip())
+        self.conn.execute(
+            "INSERT OR IGNORE INTO project_events VALUES (?, ?, ?, ?, ?, ?)",
+            (event_id, project_id, event_type.strip(), timestamp or utc_now(), summary.strip(),
+             json.dumps(metadata or {}, sort_keys=True)),
+        )
+        self.conn.commit()
+        return event_id
+
+    def list_project_events(self, project_id: str, limit: int = 100) -> list[sqlite3.Row]:
+        if limit < 1:
+            return []
+        return list(self.conn.execute(
+            "SELECT * FROM project_events WHERE project_id=? ORDER BY timestamp DESC LIMIT ?",
+            (project_id, limit)))
+
     def add_project(self, project: Project) -> str:
         self._validate_confidence(project.confidence)
-        existing = self.conn.execute("SELECT project_id FROM projects WHERE root = ?", (project.root,)).fetchone()
+        existing = self.conn.execute(
+            "SELECT * FROM projects WHERE root = ?", (project.root,)
+        ).fetchone()
+        now = utc_now()
         if existing:
-            project_id = existing[0]
+            project_id = existing["project_id"]
+            old_status = existing["status"]
             self.conn.execute(
                 "UPDATE projects SET name=?, status=?, confidence=?, summary=?, metadata_json=? WHERE project_id=?",
                 (project.name, project.status, project.confidence, project.summary,
                  json.dumps(project.metadata, sort_keys=True), project_id),
             )
+            if old_status != project.status:
+                self.add_project_event(
+                    project_id, "status_change",
+                    f"Project status changed: {old_status} → {project.status}", now,
+                    {"from_status": old_status, "to_status": project.status},
+                )
         else:
             project_id = project.project_id
             self.conn.execute(
                 "INSERT INTO projects VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (project_id, project.name, project.root, project.status, project.confidence,
                  project.summary, json.dumps(project.metadata, sort_keys=True)),
+            )
+            self.add_project_event(
+                project_id, "project_created", f"Project recorded: {project.name}", now,
+                {"status": project.status, "root": project.root},
             )
         self.conn.commit()
         return project_id
@@ -263,7 +304,7 @@ class MemoryStore:
 
     def counts(self) -> dict[str, int]:
         return {table: self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                for table in ("memories", "memory_candidates", "projects", "artifacts", "relations")}
+                for table in ("memories", "memory_candidates", "projects", "project_events", "artifacts", "relations")}
 
 
 __all__ = ["Artifact", "Memory", "MemoryCandidateRecord", "MemoryStore", "Project", "stable_id", "utc_now"]
