@@ -26,13 +26,13 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(len(candidates), 2)
         self.assertGreater(candidates[0].confidence, candidates[1].confidence)
 
-    def test_project_context_is_preserved(self):
+    def test_project_context_and_source_message_are_preserved(self):
         candidates = extract_candidates(
-            [Message("user", "We decided to keep this local.", 1)],
+            [Message("user", "We decided to keep this local.", 1, message_id="message-123")],
             project_id="project-123",
         )
         self.assertEqual(candidates[0].metadata["project_id"], "project-123")
-        self.assertEqual(candidates[0].metadata["source_message_id"], candidates[0].metadata["source_message_id"])
+        self.assertEqual(candidates[0].metadata["source_message_id"], "message-123")
 
     def test_does_not_emit_empty_messages(self):
         self.assertEqual(extract_candidates([Message("user", "   ", 1)]), [])
