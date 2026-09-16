@@ -21,7 +21,7 @@ class DiscoveryTests(unittest.TestCase):
                 after = sorted(str(p.relative_to(root)) for p in root.rglob("*"))
                 self.assertEqual(before, after)
                 self.assertEqual(len(projects), 1)
-                self.assertEqual(store.counts(), {"memories": 0, "memory_candidates": 0, "projects": 1, "project_events": 1, "artifacts": 2, "relations": 2})
+                self.assertEqual(store.counts(), {"memories": 0, "memory_candidates": 0, "projects": 1, "project_events": 1, "artifacts": 2, "artifact_events": 2, "relations": 2})
             finally:
                 store.close()
 
@@ -36,6 +36,17 @@ class DiscoveryTests(unittest.TestCase):
             self.assertIn("pyproject.toml", project.metadata["dependency_markers"])
             self.assertIn("main.py", project.metadata["likely_entrypoints"])
             self.assertIn("sqlite3", project.metadata["import_hints"])
+
+    def test_git_metadata_is_read_without_running_project_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "demo"
+            (root / ".git" / "refs" / "heads").mkdir(parents=True)
+            (root / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+            (root / ".git" / "refs" / "heads" / "main").write_text("0123456789abcdef\n", encoding="ascii")
+            project = inspect_project(root)
+            self.assertTrue(project.metadata["git"]["is_git_repository"])
+            self.assertEqual(project.metadata["git"]["git_branch"], "main")
+            self.assertEqual(project.metadata["git"]["git_head"], "0123456789abcdef")
 
     def test_scan_is_repeatable_by_location(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -53,6 +64,7 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertEqual(len(second), 1)
                 self.assertEqual(counts_after_first["projects"], counts_after_second["projects"])
                 self.assertEqual(counts_after_first["artifacts"], counts_after_second["artifacts"])
+                self.assertEqual(counts_after_second["artifact_events"], counts_after_first["artifact_events"])
             finally:
                 store.close()
 
