@@ -2,7 +2,7 @@
 
 ## Version
 
-v1.0
+v1.1
 
 ## Status
 
@@ -88,6 +88,8 @@ The timeline remains evidence-based. It does not yet reconstruct the complete se
 Candidate extraction is intentionally heuristic and conservative. It is not yet a semantic/LLM consolidation engine, and provider-specific adapters are still limited to verified input shapes.
 
 ChatGPT timestamp handling now preserves normalized UTC timestamps, but other providers still require verified adapters before provider-specific timestamp mapping is added.
+
+The new evidence projection helper is currently a library-level capability; it is not yet wired into the CLI's normal review workflow.
 
 ## Next
 
