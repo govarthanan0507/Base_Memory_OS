@@ -64,7 +64,7 @@ def _text_import_hints(path: Path) -> list[str]:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
-    found = re.findall(r"(?:from|require\\(?)\\s*[\\\"']([^\\\"']+)", text)
+    found = re.findall(r'''(?:from|require\()\s*["']([^"']+)''', text)
     return sorted({item.split("/")[0] for item in found})[:20]
 
 
@@ -107,7 +107,7 @@ def inspect_project(root: Path) -> Project:
         "dependency_markers": sorted(set(markers) & DEPENDENCY_MARKERS),
         "likely_entrypoints": sorted(set(entrypoints)),
         "import_hints": sorted(imports),
-        "discovery_version": "0.2.0",
+        "discovery_version": "0.2.1",
     }
     evidence = 0.45 + (0.15 if code_files else 0) + (0.1 if summary else 0) + (0.1 if len(markers) > 1 else 0)
     evidence += min(0.1, 0.05 if entrypoints else 0) + min(0.1, 0.05 if (set(markers) & DEPENDENCY_MARKERS) else 0)
