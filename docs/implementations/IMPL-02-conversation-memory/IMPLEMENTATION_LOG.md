@@ -2,11 +2,11 @@
 
 ## Version
 
-v1.1
+v1.2
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, normalized ChatGPT source timestamps, and reviewed-candidate project evidence implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, normalized ChatGPT source timestamps, reviewed-candidate project evidence, and CLI evidence projection implemented.
 
 ## Completed
 
@@ -57,9 +57,10 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - repeated projection is idempotent
   - rejected/unreviewed candidates are not projected as project milestones
 - `src/memory_os/cli.py`
-  - `extract-candidates`
+  - `extract-candidates [--project-id]`
   - `list-candidates`
   - `review-candidate`
+  - `project-evidence <conversation_id> <project_id> [--candidate-id ...]`
   - `timeline-project`
 - `src/memory_os/timeline.py`
   - project activity timeline from explicit project events, recorded relationships, and artifact modification timestamps
@@ -78,6 +79,8 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - project creation/status-change history and explicit event idempotence
   - project timeline and missing-project behavior
   - accepted-candidate projection and idempotence
+  - explicit project event inclusion in timeline
+  - direct candidate source-message provenance assertion
 
 ## Current limitation
 
@@ -89,12 +92,14 @@ Candidate extraction is intentionally heuristic and conservative. It is not yet 
 
 ChatGPT timestamp handling now preserves normalized UTC timestamps, but other providers still require verified adapters before provider-specific timestamp mapping is added.
 
-The new evidence projection helper is currently a library-level capability; it is not yet wired into the CLI's normal review workflow.
+CLI workflow now exposes reviewed-candidate projection, but there is not yet a single end-to-end command that imports, extracts, reviews, projects, and renders a complete re-entry package automatically.
+
+A real user export fixture has not yet been committed; current tests use synthetic/sanitized data and test execution has not been successfully verified in the available execution environment.
 
 ## Next
 
-1. Integrate accepted-candidate projection into the normal conversation/project workflow and CLI.
-2. Validate against a real user export fixture before declaring IMPL-02 complete.
+1. Add a deterministic end-to-end workflow command/test for import → extract → review → project evidence → timeline → re-entry.
+2. Validate against a real sanitized export fixture before declaring IMPL-02 complete.
 3. Add provider adapters only from verified export formats; do not invent provider schemas.
 4. Add stronger multi-hop continuity and cross-agent source reconciliation.
 5. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
