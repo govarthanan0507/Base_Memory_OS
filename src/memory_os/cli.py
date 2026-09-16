@@ -3,15 +3,16 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .conversation import get_messages
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
+from .importers import import_json, import_markdown
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memory-os", description="Base Memory OS CLI")
     parser.add_argument("--db", default=".memory-os/memory.db", help="SQLite database path")
     sub = parser.add_subparsers(dest="command", required=True)
-
     sub.add_parser("init", help="Initialize the memory database")
 
     add = sub.add_parser("add-memory", help="Store a durable memory")
@@ -27,6 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
     scan = sub.add_parser("scan-projects", help="Read-only project/file discovery")
     scan.add_argument("root", type=Path)
 
+    imp = sub.add_parser("import-conversation", help="Import a local conversation transcript")
+    imp.add_argument("path", type=Path)
+    imp.add_argument("--format", choices=("json", "markdown"), default=None)
+    imp.add_argument("--source", default="local")
+    imp.add_argument("--title", default=None)
+
+    show = sub.add_parser("show-conversation", help="Show normalized messages")
+    show.add_argument("conversation_id")
+
     return parser
 
 
@@ -37,8 +47,7 @@ def main() -> int:
         if args.command == "init":
             print(f"Initialized {Path(args.db).resolve()}")
         elif args.command == "add-memory":
-            memory_id = store.add_memory(Memory(args.content, args.type, args.source, args.confidence))
-            print(memory_id)
+            print(store.add_memory(Memory(args.content, args.type, args.source, args.confidence)))
         elif args.command == "search":
             for row in store.search(args.query, args.limit):
                 print(f"[{row['memory_type']}] {row['content']} ({row['source']})")
@@ -47,6 +56,16 @@ def main() -> int:
             for project in projects:
                 print(f"{project.status:17} {project.name} — {project.root}")
             print(f"Discovered {len(projects)} project(s). No files were moved or deleted.")
+        elif args.command == "import-conversation":
+            fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
+            if fmt == "json":
+                cid = import_json(store, args.path)
+            else:
+                cid = import_markdown(store, args.path, source=args.source, title=args.title)
+            print(cid)
+        elif args.command == "show-conversation":
+            for row in get_messages(store, args.conversation_id):
+                print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
     finally:
         store.close()
     return 0
