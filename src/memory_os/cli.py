@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .continuity import render_reentry_brief
-from .conversation import get_messages
+from .continuity import render_project_reentry_brief, render_reentry_brief
+from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
 from .importers import import_chatgpt_export, import_json, import_markdown
@@ -41,6 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
     show = sub.add_parser("show-conversation", help="Show normalized messages")
     show.add_argument("conversation_id")
 
+    conversations = sub.add_parser("list-conversations", help="List imported conversations")
+    conversations.add_argument("--limit", type=int, default=50)
+
     relate = sub.add_parser("relate", help="Create a relationship between two known IDs")
     relate.add_argument("source_id")
     relate.add_argument("relation")
@@ -49,6 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
     reentry = sub.add_parser("reentry", help="Render an evidence-based conversation re-entry brief")
     reentry.add_argument("conversation_id")
     reentry.add_argument("--limit", type=int, default=50)
+
+    project_reentry = sub.add_parser("reentry-project", help="Render a project-centric re-entry brief")
+    project_reentry.add_argument("project_id")
+    project_reentry.add_argument("--limit", type=int, default=50)
 
     return parser
 
@@ -81,11 +88,16 @@ def main() -> int:
         elif args.command == "show-conversation":
             for row in get_messages(store, args.conversation_id):
                 print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
+        elif args.command == "list-conversations":
+            for row in list_conversations(store, args.limit):
+                print(f"{row['conversation_id']}  [{row['source']}] {row['title']}")
         elif args.command == "relate":
             store.relate(args.source_id, args.relation, args.target_id)
             print(f"Related {args.source_id} --{args.relation}--> {args.target_id}")
         elif args.command == "reentry":
             print(render_reentry_brief(store, args.conversation_id, args.limit))
+        elif args.command == "reentry-project":
+            print(render_project_reentry_brief(store, args.project_id, args.limit))
     finally:
         store.close()
     return 0
