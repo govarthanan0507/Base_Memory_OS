@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from typing import Any
 
 
 def project_timeline(store: Any, project_id: str, limit: int = 100) -> list[dict[str, Any]]:
-    """Return a deterministic activity timeline for a project and its direct relations."""
+    """Return a deterministic activity timeline for a project and its recorded evidence."""
     if limit < 1:
         return []
 
@@ -17,13 +16,14 @@ def project_timeline(store: Any, project_id: str, limit: int = 100) -> list[dict
     if project is None:
         return []
 
-    events.append({
-        "event_type": "project",
-        "timestamp": None,
-        "entity_id": project_id,
-        "summary": f"Project discovered: {project['name']}",
-        "metadata": json.loads(project["metadata_json"] or "{}"),
-    })
+    for event in store.list_project_events(project_id, limit=limit):
+        events.append({
+            "event_type": event["event_type"],
+            "timestamp": event["timestamp"],
+            "entity_id": project_id,
+            "summary": event["summary"],
+            "metadata": json.loads(event["metadata_json"] or "{}"),
+        })
 
     relations = store.conn.execute(
         "SELECT * FROM relations WHERE source_id = ? OR target_id = ? ORDER BY created_at ASC",
@@ -40,8 +40,9 @@ def project_timeline(store: Any, project_id: str, limit: int = 100) -> list[dict
             "metadata": json.loads(relation["metadata_json"] or "{}"),
         })
 
-    # Include artifact modification times for artifacts directly contained by the project.
-    artifact_relations = [r for r in relations if r["relation"] == "contains" and r["source_id"] == project_id]
+    artifact_relations = [
+        r for r in relations if r["relation"] == "contains" and r["source_id"] == project_id
+    ]
     for relation in artifact_relations:
         artifact = store.conn.execute(
             "SELECT * FROM artifacts WHERE artifact_id = ?", (relation["target_id"],)
