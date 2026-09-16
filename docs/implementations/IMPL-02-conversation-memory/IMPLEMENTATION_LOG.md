@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.6
+v0.7
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, and role-aware candidate extraction foundations implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role-aware candidate extraction, and historical project events implemented.
 
 ## Completed
 
@@ -43,13 +43,15 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - candidate status lifecycle
   - explicit accept/reject review boundary
   - accepted candidates can be promoted to durable memories with provenance
+  - append-only project event records for project creation and status changes
+  - explicit project-event API with idempotent event identity
 - `src/memory_os/cli.py`
   - `extract-candidates`
   - `list-candidates`
   - `review-candidate`
   - `timeline-project`
 - `src/memory_os/timeline.py`
-  - project activity timeline from recorded relationships and artifact modification timestamps
+  - project activity timeline from explicit project events, recorded relationships, and artifact modification timestamps
   - deterministic Markdown timeline rendering
 - Tests
   - idempotent conversation import
@@ -59,18 +61,21 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - project-centric conversation/artifact/memory continuity
   - candidate extraction and admission boundary
   - role-aware candidate confidence and project context
+  - project creation/status-change history and explicit event idempotence
   - project timeline and missing-project behavior
 
 ## Current limitation
 
-The timeline is currently an evidence timeline, not a full inferred project history. It uses recorded graph relationships and known artifact modification timestamps; it does not yet reconstruct semantic milestones, changed decisions, unresolved threads, or project status transitions from all available evidence.
+Project events currently record explicit lifecycle changes made through the store API. They do not yet infer semantic milestones from conversations, code changes, commits, or artifact content.
+
+The timeline remains evidence-based. It does not yet reconstruct the complete semantic history of a project or automatically infer changed decisions and unresolved threads.
 
 Candidate extraction is intentionally heuristic and conservative. It is not yet a semantic/LLM consolidation engine, and provider-specific adapters are still limited to verified input shapes.
 
 ## Next
 
 1. Preserve richer source timestamps and metadata consistently across all import paths.
-2. Add semantic project activity events and status transitions without overwriting historical evidence.
+2. Add evidence-derived project events from imported conversations and project/file discovery.
 3. Validate against a real user export fixture before declaring IMPL-02 complete.
 4. Add provider adapters only from verified export formats; do not invent provider schemas.
 5. Begin stronger multi-hop continuity and cross-agent source reconciliation.
@@ -78,4 +83,4 @@ Candidate extraction is intentionally heuristic and conservative. It is not yet 
 
 ## Safety
 
-Import is additive and does not modify source export files. Files are not moved or deleted. Re-entry and timeline output are evidence-based and only include relationships or timestamps recorded in the local graph. Inferred memory remains candidate-only until explicit review accepts it.
+Import is additive and does not modify source export files. Files are not moved or deleted. Re-entry and timeline output are evidence-based and only include relationships, explicit project events, or timestamps recorded in the local graph. Inferred memory remains candidate-only until explicit review accepts it.
