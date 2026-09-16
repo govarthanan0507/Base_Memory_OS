@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.2
+v0.3
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage support, and first re-entry context foundation implemented.
+In progress — normalized conversation storage, local import, graph linkage, and project/conversation re-entry foundations implemented.
 
 ## Completed
 
@@ -17,6 +17,8 @@ In progress — normalized conversation storage, local import, graph linkage sup
   - duplicate-safe inserts
   - transactional validation and rollback
   - ordered message retrieval
+  - single-conversation retrieval
+  - conversation listing
 - `src/memory_os/importers.py`
   - normalized JSON importer
   - Markdown role-marker importer
@@ -28,24 +30,36 @@ In progress — normalized conversation storage, local import, graph linkage sup
   - `import-conversation`
   - `import-chatgpt-export`
   - `show-conversation`
+  - `list-conversations`
+  - `reentry`
+  - `reentry-project`
 - `src/memory_os/continuity.py`
   - related-record traversal
   - compact conversation context packet
-  - deterministic Markdown re-entry brief rendering
-- `tests/test_conversation.py`
-  - idempotent import
+  - one-hop project-to-artifact expansion for conversation re-entry
+  - project context containing linked conversations, artifacts, and linked memories
+  - deterministic Markdown conversation and project re-entry briefs
+- Tests
+  - idempotent conversation import
   - source preservation
   - rollback behavior
+  - conversation → project → artifact continuity
+  - project-centric conversation/artifact/memory continuity
+  - missing-entity behavior
+
+## Current limitation
+
+Re-entry is still evidence-based graph retrieval, not semantic reconstruction. It does not yet infer decisions, unresolved questions, tasks, project status changes, or a next smallest experiment from conversation content. Those capabilities belong to the candidate-memory and consolidation layer.
 
 ## Next
 
-1. Add export adapters for other providers, beginning with Claude-compatible local exports.
+1. Add candidate memory extraction without committing inferred memories automatically.
 2. Preserve richer source timestamps and metadata where available.
-3. Add conversation-to-project and conversation-to-artifact relation helpers and CLI support.
-4. Add candidate memory extraction without committing inferred memories automatically.
-5. Validate against a real user export fixture before declaring IMPL-02 complete.
-6. Build project-centric re-entry: project → conversations → artifacts → recent activity.
+3. Add explicit conversation/project/artifact relation helpers where they improve correctness and ergonomics.
+4. Validate against a real user export fixture before declaring IMPL-02 complete.
+5. Add provider adapters only from verified export formats; do not invent provider schemas.
+6. Move toward project activity timelines and stronger multi-hop continuity.
 
 ## Safety
 
-Import is additive and does not modify source export files. Files are not moved or deleted. Re-entry output is evidence-based and only includes relationships already present in the local graph.
+Import is additive and does not modify source export files. Files are not moved or deleted. Re-entry output is evidence-based and only includes relationships already present in the local graph. Inferred memory will remain candidate-only until an explicit promotion/consolidation mechanism exists.
