@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .candidates import persist_candidates
@@ -31,6 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = sub.add_parser("scan-projects", help="Read-only project/file discovery")
     scan.add_argument("root", type=Path)
+
+    report = sub.add_parser("project-report", help="Render deterministic structural evidence for a project")
+    report.add_argument("project_id")
+    report.add_argument("--limit", type=int, default=100)
 
     imp = sub.add_parser("import-conversation", help="Import a local conversation transcript")
     imp.add_argument("path", type=Path)
@@ -85,6 +90,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _project_report(store: MemoryStore, project_id: str, limit: int) -> str:
+    project = store.conn.execute("SELECT * FROM projects WHERE project_id=?", (project_id,)).fetchone()
+    if project is None:
+        raise KeyError(project_id)
+    artifacts = store.conn.execute(
+        "SELECT a.* FROM artifacts a JOIN relations r ON r.target_id=a.artifact_id "
+        "WHERE r.source_id=? AND r.relation='contains' ORDER BY a.location LIMIT ?",
+        (project_id, limit),
+    ).fetchall()
+    events = store.list_project_events(project_id, limit=limit)
+    lines = [f"# {project['name']}", "", f"- ID: `{project_id}`", f"- Root: `{project['root']}`",
+             f"- Status: **{project['status']}**", f"- Confidence: {project['confidence']:.2f}"]
+    if project["summary"]:
+        lines += [f"- Summary: {project['summary']}"]
+    metadata = json.loads(project["metadata_json"])
+    lines += ["", "## Structural evidence", "", "```json", json.dumps(metadata, indent=2, sort_keys=True), "```"]
+    lines += ["", "## Artifacts", ""]
+    lines.extend(f"- `{row['location']}` [{row['artifact_type']}] hash={row['content_hash'] or 'unhashed'}" for row in artifacts)
+    lines += ["", "## Project events", ""]
+    lines.extend(f"- {row['timestamp']} — **{row['event_type']}** — {row['summary']}" for row in events)
+    return "\n".join(lines)
+
+
 def main() -> int:
     args = build_parser().parse_args()
     store = MemoryStore(args.db)
@@ -99,8 +127,12 @@ def main() -> int:
         elif args.command == "scan-projects":
             projects = scan_workspace(args.root, store)
             for project in projects:
-                print(f"{project.status:17} {project.name} — {project.root}")
+                git = project.metadata.get("git", {})
+                suffix = f" — git:{git.get('git_branch')}@{git.get('git_head')}" if git.get("is_git_repository") else ""
+                print(f"{project.status:17} {project.name} — {project.root}{suffix}")
             print(f"Discovered {len(projects)} project(s). No files were moved or deleted.")
+        elif args.command == "project-report":
+            print(_project_report(store, args.project_id, args.limit))
         elif args.command == "import-conversation":
             fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
             if fmt == "json":
