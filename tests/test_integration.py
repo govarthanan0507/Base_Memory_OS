@@ -3,9 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from memory_os.candidates import persist_candidates
+from memory_os.continuity import render_project_reentry_brief
 from memory_os.conversation import get_messages
 from memory_os.core import Artifact, MemoryStore, Project
+from memory_os.evidence import record_conversation_candidates_as_project_events
 from memory_os.importers import import_chatgpt_export
+from memory_os.timeline import render_project_timeline
 
 
 class IntegrationTests(unittest.TestCase):
@@ -19,7 +23,7 @@ class IntegrationTests(unittest.TestCase):
                 "create_time": 1000,
                 "update_time": 1100,
                 "mapping": {
-                    "a": {"message": {"id": "m1", "author": {"role": "user"}, "content": {"parts": ["Build it"]}, "create_time": 1000}},
+                    "a": {"message": {"id": "m1", "author": {"role": "user"}, "content": {"parts": ["I decided to build the collector locally"]}, "create_time": 1000}},
                     "b": {"message": {"id": "m2", "author": {"role": "assistant"}, "content": {"parts": ["Start with the importer"]}, "create_time": 1100}},
                 },
             }]), encoding="utf-8")
@@ -36,7 +40,21 @@ class IntegrationTests(unittest.TestCase):
                 aid = store.add_artifact(Artifact("collector.py", "code", str(root / "collector.py")))
                 store.relate(pid, "contains", aid)
                 store.relate(pid, "discussed_in", cid)
-                self.assertEqual(store.related(pid, "discussed_in")[0]["target_id"], cid)
+
+                candidate_ids = persist_candidates(store, cid, get_messages(store, cid), project_id=pid)
+                self.assertEqual(len(candidate_ids), 1)
+                store.review_candidate(candidate_ids[0], "accepted")
+                event_ids = record_conversation_candidates_as_project_events(store, cid, pid)
+                self.assertEqual(len(event_ids), 1)
+
+                timeline = render_project_timeline(store, pid)
+                self.assertIn("candidate_decision", timeline)
+                self.assertIn("collector.py", timeline)
+
+                reentry = render_project_reentry_brief(store, pid)
+                self.assertIn("Collector", reentry)
+                self.assertIn(cid, reentry)
+                self.assertIn("collector.py", reentry)
             finally:
                 store.close()
 
