@@ -24,9 +24,21 @@ _PATTERNS: tuple[tuple[str, tuple[str, ...], float], ...] = (
     ("unresolved", ("not sure", "need to figure out", "still need to", "what if", "how do we"), 0.6),
 )
 
+# User-authored statements are stronger evidence for personal decisions/preferences.
+# Assistant statements remain candidates only when they contain explicit decision/task language.
+_PERSONAL_TYPES = {"decision", "preference"}
 
-def extract_candidates(messages: Iterable[Message], max_per_message: int = 2) -> list[MemoryCandidate]:
-    """Extract conservative, reviewable candidates from explicit language."""
+
+def extract_candidates(
+    messages: Iterable[Message],
+    max_per_message: int = 2,
+    project_id: str | None = None,
+) -> list[MemoryCandidate]:
+    """Extract conservative, reviewable candidates from explicit language.
+
+    Candidates remain evidence, not durable memory. Role is used as a confidence
+    signal rather than as an absolute filter so useful task/decision evidence is not lost.
+    """
     if max_per_message < 1:
         raise ValueError("max_per_message must be at least 1")
     candidates: list[MemoryCandidate] = []
@@ -37,26 +49,43 @@ def extract_candidates(messages: Iterable[Message], max_per_message: int = 2) ->
             continue
         found = 0
         for memory_type, patterns, confidence in _PATTERNS:
-            if any(pattern in lowered for pattern in patterns):
-                candidates.append(MemoryCandidate(
-                    memory_type=memory_type,
-                    content=text,
-                    source_message_sequence=message.sequence,
-                    confidence=confidence,
-                    metadata={"role": message.role, "observed_at": message.observed_at,
-                              "source_message_id": message.message_id},
-                ))
-                found += 1
-                if found >= max_per_message:
-                    break
+            if not any(pattern in lowered for pattern in patterns):
+                continue
+            adjusted = confidence
+            if message.role != "user" and memory_type in _PERSONAL_TYPES:
+                adjusted = max(0.0, confidence - 0.2)
+            metadata = {
+                "role": message.role,
+                "observed_at": message.observed_at,
+                "source_message_id": message.message_id,
+            }
+            if project_id:
+                metadata["project_id"] = project_id
+            candidates.append(MemoryCandidate(
+                memory_type=memory_type,
+                content=text,
+                source_message_sequence=message.sequence,
+                confidence=adjusted,
+                metadata=metadata,
+            ))
+            found += 1
+            if found >= max_per_message:
+                break
     return candidates
 
 
-def persist_candidates(store: MemoryStore, conversation_id: str,
-                       messages: Iterable[Message], max_per_message: int = 2) -> list[str]:
+def persist_candidates(
+    store: MemoryStore,
+    conversation_id: str,
+    messages: Iterable[Message],
+    max_per_message: int = 2,
+    project_id: str | None = None,
+) -> list[str]:
     """Persist extracted candidates without promoting them to durable memory."""
     ids: list[str] = []
-    for candidate in extract_candidates(messages, max_per_message=max_per_message):
+    for candidate in extract_candidates(
+        messages, max_per_message=max_per_message, project_id=project_id
+    ):
         source_message_id = (candidate.metadata or {}).get("source_message_id")
         record = MemoryCandidateRecord(
             content=candidate.content,
@@ -66,8 +95,11 @@ def persist_candidates(store: MemoryStore, conversation_id: str,
             confidence=candidate.confidence,
             status="candidate",
             observed_at=(candidate.metadata or {}).get("observed_at") or "",
-            metadata={**(candidate.metadata or {}), "conversation_id": conversation_id,
-                      "source_message_sequence": candidate.source_message_sequence},
+            metadata={
+                **(candidate.metadata or {}),
+                "conversation_id": conversation_id,
+                "source_message_sequence": candidate.source_message_sequence,
+            },
         )
         ids.append(store.add_candidate(record))
     return ids
