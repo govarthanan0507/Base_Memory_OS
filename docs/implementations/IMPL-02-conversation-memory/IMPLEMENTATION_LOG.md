@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.9
+v1.0
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, and normalized ChatGPT source timestamps implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role/project-aware candidate extraction, historical project events, richer re-import provenance, normalized ChatGPT source timestamps, and reviewed-candidate project evidence implemented.
 
 ## Completed
 
@@ -51,6 +51,11 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - accepted candidates can be promoted to durable memories with provenance
   - append-only project event records for project creation and status changes
   - explicit project-event API with idempotent event identity
+- `src/memory_os/evidence.py`
+  - projects can receive events from explicitly accepted conversation candidates
+  - candidate, conversation, message, confidence, and evidence status are retained in event metadata
+  - repeated projection is idempotent
+  - rejected/unreviewed candidates are not projected as project milestones
 - `src/memory_os/cli.py`
   - `extract-candidates`
   - `list-candidates`
@@ -72,12 +77,13 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - role-aware candidate confidence and project context
   - project creation/status-change history and explicit event idempotence
   - project timeline and missing-project behavior
+  - accepted-candidate projection and idempotence
 
 ## Current limitation
 
-Project events currently record explicit lifecycle changes made through the store API. They do not yet infer semantic milestones from conversations, code changes, commits, or artifact content.
+Project events derived from conversation candidates require explicit candidate acceptance; the system does not silently infer durable project milestones. Code changes, commits, artifact content, and unreviewed conversation language are not yet semantic project events.
 
-The timeline remains evidence-based. It does not yet reconstruct the complete semantic history of a project or automatically infer changed decisions and unresolved threads.
+The timeline remains evidence-based. It does not yet reconstruct the complete semantic history of a project or automatically resolve changed decisions and unresolved threads.
 
 Candidate extraction is intentionally heuristic and conservative. It is not yet a semantic/LLM consolidation engine, and provider-specific adapters are still limited to verified input shapes.
 
@@ -85,7 +91,7 @@ ChatGPT timestamp handling now preserves normalized UTC timestamps, but other pr
 
 ## Next
 
-1. Add evidence-derived project events from imported conversations and project/file discovery.
+1. Integrate accepted-candidate projection into the normal conversation/project workflow and CLI.
 2. Validate against a real user export fixture before declaring IMPL-02 complete.
 3. Add provider adapters only from verified export formats; do not invent provider schemas.
 4. Add stronger multi-hop continuity and cross-agent source reconciliation.
