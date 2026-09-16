@@ -4,17 +4,19 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.1**
+**IMPL-03 — Project & File Intelligence v0.2**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships and lexical retrieval. IMPL-02 established normalized conversations, provider-neutral imports, continuity, candidate review, project evidence, timelines and re-entry briefs.
 
-IMPL-03 now begins the filesystem intelligence layer. Memory OS can discover likely project roots, inspect project structure without executing code, register files as artifacts, connect artifacts to projects, and retain evidence such as dependency markers, likely entrypoints and lightweight import hints.
+IMPL-03 now provides a filesystem intelligence layer. Memory OS can discover likely project roots, inspect project structure without executing code, register files as artifacts, connect artifacts to projects, and retain evidence such as dependency markers, likely entrypoints and lightweight import hints.
 
 Discovery is deliberately **read-only**. It does not move, rename, delete or execute user files. Physical filesystem organization remains separate from the semantic project overlay.
 
-Project inspection is intentionally evidence-based rather than pretending to understand an entire codebase. Current structural evidence includes file/code counts, dependency markers, README-derived summaries, likely entrypoints, bounded content hashes and lightweight Python/JavaScript/TypeScript import hints.
+Project inspection is intentionally evidence-based rather than pretending to understand an entire codebase. Current structural evidence includes file/code counts, dependency markers, README-derived summaries, likely entrypoints, bounded content hashes, lightweight Python/JavaScript/TypeScript import hints, and Git branch/HEAD metadata read directly from `.git` files.
 
-Rescans are repeatable: projects are keyed by root location and artifacts by file location, so the same workspace can be scanned again without creating duplicate physical records.
+Rescans are repeatable: projects are keyed by root location and artifacts by file location. Artifact state changes are now preserved as append-only `artifact_events`, so a later scan can show that a file changed instead of silently erasing its prior observed hash/mtime.
+
+A deterministic `project-report` CLI command exposes the stored project evidence, registered artifacts and project events without executing project code.
 
 ## Design principles
 
@@ -34,6 +36,7 @@ Rescans are repeatable: projects are keyed by root location and artifacts by fil
 14. Only project candidate-derived project milestones after explicit review acceptance.
 15. Treat filesystem discovery as a semantic overlay, not a filesystem cleanup operation.
 16. Do not execute discovered code as part of project intelligence.
+17. Treat observed Git metadata as evidence, not as a claim about project health or quality.
 
 ## Status
 
@@ -45,13 +48,14 @@ Rescans are repeatable: projects are keyed by root location and artifacts by fil
 - **Accepted candidate → project evidence:** implemented with provenance and idempotent projection, including CLI access.
 - **IMPL-03 project discovery:** implemented as a read-only structural intelligence layer.
 - **IMPL-03 artifact registry linkage:** implemented with bounded SHA-256 hashes and project containment relationships.
-- **IMPL-03 structural evidence:** dependency markers, likely entrypoints and lightweight import hints implemented.
-- **IMPL-03 repeatable scans:** implemented by project root and artifact location uniqueness.
+- **IMPL-03 structural evidence:** dependency markers, likely entrypoints, lightweight import hints and Git branch/HEAD metadata implemented.
+- **IMPL-03 artifact change history:** implemented with append-only artifact events and idempotent repeated scans.
+- **IMPL-03 project report:** implemented as a deterministic CLI view of stored structural evidence.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
 
 ## IMPL-03 completion gate
 
-Before IMPL-03 is declared complete, discovery must be exercised against representative workspaces, Git evidence and artifact-change tracking must be added, and project-to-conversation continuity must be validated. Discovery must remain non-destructive.
+Before IMPL-03 is declared complete, discovery must be exercised against representative real workspaces, project-to-conversation continuity must be validated, and the project-state evidence model must be hardened. Git evidence and artifact-change tracking are now implemented. Discovery must remain non-destructive.
 
 ## Roadmap
 
