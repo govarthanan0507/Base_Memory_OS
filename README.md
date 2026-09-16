@@ -4,13 +4,13 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-02 — Conversation Memory v0.5**
+**IMPL-02 — Conversation Memory v0.6**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships, lexical retrieval, read-only project discovery, tests and CI.
 
-IMPL-02 now provides normalized conversation/message persistence, provider-neutral import boundaries, ChatGPT export ingestion, conversation/project/artifact continuity, project and conversation re-entry briefs, conservative memory-candidate extraction, explicit candidate review/promotion, and project activity timelines.
+IMPL-02 now provides normalized conversation/message persistence, provider-neutral import boundaries, ChatGPT export ingestion, conversation/project/artifact continuity, conversation and project re-entry briefs, conservative memory-candidate extraction, explicit candidate review/promotion, project activity timelines, and role/project-aware candidate evidence.
 
-The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance and must cross an explicit review boundary before promotion.
+The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance. User-authored personal decision/preference signals receive stronger evidence confidence than equivalent assistant-authored statements, and candidates can carry an associated project identifier when known.
 
 The project timeline is currently **evidence-based**: it combines recorded graph relationships with known artifact modification timestamps. It does not yet claim to reconstruct the complete semantic history of a project.
 
@@ -32,11 +32,12 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 ## Status
 
 - **IMPL-01 foundation:** implemented.
-- **IMPL-02 conversation normalization:** implemented through the current timeline milestone.
+- **IMPL-02 conversation normalization:** implemented through the current role/project-aware candidate milestone.
 - **Conversation continuity:** implemented for conversation ↔ project ↔ artifact relationships and re-entry briefs.
 - **Candidate extraction:** implemented as conservative, provenance-preserving candidate generation.
 - **Candidate persistence/review boundary:** implemented; explicit acceptance is required for durable promotion.
 - **Project activity timeline:** implemented from recorded relationships and artifact modification evidence.
+- **Role/project-aware candidates:** implemented with role-sensitive confidence and optional project context.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
 
 ## Roadmap
