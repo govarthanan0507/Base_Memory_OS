@@ -78,28 +78,68 @@ def ensure_schema(store: MemoryStore) -> None:
     store.conn.commit()
 
 
+def _merge_json(existing_json: str | None, incoming: dict[str, Any]) -> str:
+    existing = json.loads(existing_json or "{}")
+    merged = {**existing, **incoming}
+    return json.dumps(merged, sort_keys=True)
+
+
 def persist_conversation(store: MemoryStore, conversation: Conversation) -> str:
     ensure_schema(store)
     cid = conversation.conversation_id
     store.conn.execute("BEGIN")
     try:
-        store.conn.execute(
-            """INSERT OR IGNORE INTO conversations
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (cid, conversation.source, conversation.external_id, conversation.title,
-             conversation.started_at, conversation.ended_at, conversation.source_location,
-             json.dumps(conversation.metadata, sort_keys=True)),
-        )
+        existing = store.conn.execute(
+            "SELECT * FROM conversations WHERE conversation_id = ?", (cid,)
+        ).fetchone()
+        if existing is None:
+            store.conn.execute(
+                """INSERT INTO conversations
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (cid, conversation.source, conversation.external_id, conversation.title,
+                 conversation.started_at, conversation.ended_at, conversation.source_location,
+                 json.dumps(conversation.metadata, sort_keys=True)),
+            )
+        else:
+            # Re-imports may discover richer provenance later. Preserve old values
+            # when the new source is silent, while merging newly supplied metadata.
+            store.conn.execute(
+                """UPDATE conversations SET title=?, started_at=?, ended_at=?,
+                   source_location=?, metadata_json=? WHERE conversation_id=?""",
+                (
+                    conversation.title,
+                    conversation.started_at or existing["started_at"],
+                    conversation.ended_at or existing["ended_at"],
+                    conversation.source_location or existing["source_location"],
+                    _merge_json(existing["metadata_json"], conversation.metadata),
+                    cid,
+                ),
+            )
         for msg in conversation.messages:
             if not msg.role.strip() or not msg.content.strip():
                 raise ValueError("message role and content must be non-empty")
             mid = message_id(cid, msg.sequence, msg.role, msg.content, msg.external_id)
-            store.conn.execute(
-                """INSERT OR IGNORE INTO messages
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (mid, cid, msg.sequence, msg.role, msg.content, msg.observed_at,
-                 msg.external_id, json.dumps(msg.metadata, sort_keys=True)),
-            )
+            existing_msg = store.conn.execute(
+                "SELECT * FROM messages WHERE message_id=?", (mid,)
+            ).fetchone()
+            if existing_msg is None:
+                store.conn.execute(
+                    """INSERT INTO messages
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (mid, cid, msg.sequence, msg.role, msg.content, msg.observed_at,
+                     msg.external_id, json.dumps(msg.metadata, sort_keys=True)),
+                )
+            else:
+                store.conn.execute(
+                    """UPDATE messages SET observed_at=?, external_id=?, metadata_json=?
+                       WHERE message_id=?""",
+                    (
+                        msg.observed_at or existing_msg["observed_at"],
+                        msg.external_id or existing_msg["external_id"],
+                        _merge_json(existing_msg["metadata_json"], msg.metadata),
+                        mid,
+                    ),
+                )
         store.conn.commit()
     except Exception:
         store.conn.rollback()
