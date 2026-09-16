@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .adapters import chatgpt_conversation
 from .conversation import Conversation, Message, persist_conversation
 from .core import MemoryStore
 
@@ -48,6 +49,24 @@ def import_json(store: MemoryStore, path: str | Path) -> str:
     return persist_conversation(store, conversation_from_json(data, str(source.resolve())))
 
 
+def import_chatgpt_export(store: MemoryStore, path: str | Path) -> int:
+    """Import all supported conversations from a ChatGPT export JSON file."""
+    source = Path(path)
+    data = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("ChatGPT export must be a JSON list of conversations")
+    imported = 0
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        try:
+            persist_conversation(store, chatgpt_conversation(item))
+        except ValueError:
+            continue
+        imported += 1
+    return imported
+
+
 def conversation_from_markdown(text: str, source: str = "markdown", title: str = "Untitled conversation",
                                source_location: str | None = None) -> Conversation:
     messages = []
@@ -86,4 +105,4 @@ def import_markdown(store: MemoryStore, path: str | Path, *, source: str = "mark
     return persist_conversation(store, conversation)
 
 
-__all__ = ["conversation_from_json", "conversation_from_markdown", "import_json", "import_markdown"]
+__all__ = ["conversation_from_json", "conversation_from_markdown", "import_chatgpt_export", "import_json", "import_markdown"]
