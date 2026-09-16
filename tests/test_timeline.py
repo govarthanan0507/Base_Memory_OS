@@ -23,16 +23,19 @@ class TimelineTests(unittest.TestCase):
                 ))
                 store.relate(pid, "discussed_in", cid, {"reason": "project discussion"})
                 store.relate(pid, "contains", aid)
+                store.add_project_event(pid, "experiment", "Tested the collector", "2026-09-17T11:00:00+00:00")
 
                 events = project_timeline(store, pid)
                 summaries = [event["summary"] for event in events]
                 self.assertTrue(any("Video Project" in item for item in summaries))
                 self.assertTrue(any("discussed_in" in item for item in summaries))
                 self.assertTrue(any("collector.py" in item for item in summaries))
+                self.assertTrue(any("Tested the collector" in item for item in summaries))
 
                 rendered = render_project_timeline(store, pid)
                 self.assertIn("Video Project", rendered)
                 self.assertIn("collector.py", rendered)
+                self.assertIn("Tested the collector", rendered)
             finally:
                 store.close()
 
