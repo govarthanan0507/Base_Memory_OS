@@ -9,6 +9,7 @@ from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
 from .importers import import_chatgpt_export, import_json, import_markdown
+from .timeline import render_project_timeline
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
     project_reentry = sub.add_parser("reentry-project", help="Render a project-centric re-entry brief")
     project_reentry.add_argument("project_id")
     project_reentry.add_argument("--limit", type=int, default=50)
+
+    timeline = sub.add_parser("timeline-project", help="Render the recorded activity timeline for a project")
+    timeline.add_argument("project_id")
+    timeline.add_argument("--limit", type=int, default=100)
 
     candidates = sub.add_parser("extract-candidates", help="Extract and persist reviewable memory candidates")
     candidates.add_argument("conversation_id")
@@ -111,6 +116,8 @@ def main() -> int:
             print(render_reentry_brief(store, args.conversation_id, args.limit))
         elif args.command == "reentry-project":
             print(render_project_reentry_brief(store, args.project_id, args.limit))
+        elif args.command == "timeline-project":
+            print(render_project_timeline(store, args.project_id, args.limit))
         elif args.command == "extract-candidates":
             messages = get_messages(store, args.conversation_id)
             ids = persist_candidates(store, args.conversation_id, messages)
