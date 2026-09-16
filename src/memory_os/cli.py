@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .candidates import persist_candidates
 from .continuity import render_project_reentry_brief, render_reentry_brief
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
@@ -57,6 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
     project_reentry.add_argument("project_id")
     project_reentry.add_argument("--limit", type=int, default=50)
 
+    candidates = sub.add_parser("extract-candidates", help="Extract and persist reviewable memory candidates")
+    candidates.add_argument("conversation_id")
+    candidates.add_argument("--limit", type=int, default=50)
+
+    candidate_list = sub.add_parser("list-candidates", help="List memory candidates awaiting review")
+    candidate_list.add_argument("--status", choices=("candidate", "accepted", "rejected", "all"), default="candidate")
+    candidate_list.add_argument("--limit", type=int, default=50)
+
+    review = sub.add_parser("review-candidate", help="Accept or reject a memory candidate")
+    review.add_argument("candidate_id")
+    review.add_argument("decision", choices=("accepted", "rejected"))
+
     return parser
 
 
@@ -98,6 +111,17 @@ def main() -> int:
             print(render_reentry_brief(store, args.conversation_id, args.limit))
         elif args.command == "reentry-project":
             print(render_project_reentry_brief(store, args.project_id, args.limit))
+        elif args.command == "extract-candidates":
+            messages = get_messages(store, args.conversation_id)
+            ids = persist_candidates(store, args.conversation_id, messages)
+            print(f"Persisted {len(ids)} candidate(s)")
+            for candidate_id in ids:
+                print(candidate_id)
+        elif args.command == "list-candidates":
+            for row in store.list_candidates(args.status, args.limit):
+                print(f"{row['candidate_id']} [{row['status']}] [{row['memory_type']}] {row['content']}")
+        elif args.command == "review-candidate":
+            print(store.review_candidate(args.candidate_id, args.decision))
     finally:
         store.close()
     return 0
