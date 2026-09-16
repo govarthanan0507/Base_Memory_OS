@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from .core import MemoryStore, utc_now
 
@@ -107,6 +107,26 @@ def persist_conversation(store: MemoryStore, conversation: Conversation) -> str:
     return cid
 
 
+def get_conversation(store: MemoryStore, cid: str) -> dict[str, Any]:
+    ensure_schema(store)
+    row = store.conn.execute(
+        "SELECT * FROM conversations WHERE conversation_id = ?", (cid,)
+    ).fetchone()
+    if row is None:
+        raise KeyError(f"conversation not found: {cid}")
+    return dict(row)
+
+
+def list_conversations(store: MemoryStore, limit: int = 50) -> list[dict[str, Any]]:
+    ensure_schema(store)
+    if limit < 1:
+        return []
+    return [dict(row) for row in store.conn.execute(
+        "SELECT * FROM conversations ORDER BY COALESCE(ended_at, started_at, rowid) DESC LIMIT ?",
+        (limit,),
+    )]
+
+
 def get_messages(store: MemoryStore, cid: str) -> list[dict[str, Any]]:
     ensure_schema(store)
     return [dict(row) for row in store.conn.execute(
@@ -114,4 +134,4 @@ def get_messages(store: MemoryStore, cid: str) -> list[dict[str, Any]]:
     )]
 
 
-__all__ = ["Conversation", "Message", "ensure_schema", "get_messages", "message_id", "persist_conversation"]
+__all__ = ["Conversation", "Message", "ensure_schema", "get_conversation", "get_messages", "list_conversations", "message_id", "persist_conversation"]
