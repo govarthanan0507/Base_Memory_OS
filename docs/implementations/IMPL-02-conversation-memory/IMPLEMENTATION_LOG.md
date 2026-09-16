@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.7
+v0.8
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role-aware candidate extraction, and historical project events implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, role-aware candidate extraction, historical project events, and richer re-import provenance implemented.
 
 ## Completed
 
@@ -19,6 +19,9 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - ordered message retrieval
   - single-conversation retrieval
   - conversation listing
+  - re-import merging for richer conversation timestamps/source location/metadata
+  - re-import merging for richer message timestamps/metadata
+  - existing evidence is preserved when a later import omits a field
 - `src/memory_os/importers.py`
   - normalized JSON importer
   - Markdown role-marker importer
@@ -55,6 +58,7 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - deterministic Markdown timeline rendering
 - Tests
   - idempotent conversation import
+  - richer provenance merge on re-import
   - source preservation
   - rollback behavior
   - conversation → project → artifact continuity
@@ -74,12 +78,11 @@ Candidate extraction is intentionally heuristic and conservative. It is not yet 
 
 ## Next
 
-1. Preserve richer source timestamps and metadata consistently across all import paths.
-2. Add evidence-derived project events from imported conversations and project/file discovery.
-3. Validate against a real user export fixture before declaring IMPL-02 complete.
-4. Add provider adapters only from verified export formats; do not invent provider schemas.
-5. Begin stronger multi-hop continuity and cross-agent source reconciliation.
-6. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
+1. Add evidence-derived project events from imported conversations and project/file discovery.
+2. Validate against a real user export fixture before declaring IMPL-02 complete.
+3. Add provider adapters only from verified export formats; do not invent provider schemas.
+4. Begin stronger multi-hop continuity and cross-agent source reconciliation.
+5. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
 
 ## Safety
 
