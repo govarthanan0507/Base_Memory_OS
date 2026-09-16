@@ -13,13 +13,13 @@ def record_conversation_candidates_as_project_events(
     *,
     candidate_ids: list[str] | None = None,
 ) -> list[str]:
-    """Record reviewed candidate evidence as project events without promoting it.
+    """Project explicitly accepted conversation candidates into project history.
 
-    Only accepted candidates become project milestones. The original candidate and
-    conversation identifiers are retained in event metadata for provenance.
+    Candidate records remain the evidence source; this function does not promote
+    them to durable memories. Project-event identity is delegated to MemoryStore,
+    making repeated projection idempotent.
     """
     rows = store.list_candidates(status="accepted", limit=1000)
-    selected = {candidate_ids} if False else None
     wanted = set(candidate_ids or [])
     event_ids: list[str] = []
     for row in rows:
@@ -30,20 +30,21 @@ def record_conversation_candidates_as_project_events(
             continue
         if wanted and row["candidate_id"] not in wanted:
             continue
-        event_type = f"candidate_{row['memory_type']}"
-        event_ids.append(store.add_project_event(
-            project_id,
-            event_type,
-            row["content"],
-            row["observed_at"],
-            {
-                "candidate_id": row["candidate_id"],
-                "conversation_id": conversation_id,
-                "source_message_id": row["source_message_id"],
-                "confidence": row["confidence"],
-                "evidence_status": "accepted",
-            },
-        ))
+        event_ids.append(
+            store.add_project_event(
+                project_id,
+                f"candidate_{row['memory_type']}",
+                row["content"],
+                row["observed_at"],
+                {
+                    "candidate_id": row["candidate_id"],
+                    "conversation_id": conversation_id,
+                    "source_message_id": row["source_message_id"],
+                    "confidence": row["confidence"],
+                    "evidence_status": "accepted",
+                },
+            )
+        )
     return event_ids
 
 
