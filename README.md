@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-02 — Conversation Memory v1.0**
+**IMPL-02 — Conversation Memory v1.1**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships, lexical retrieval, read-only project discovery, tests and CI.
 
@@ -12,7 +12,7 @@ IMPL-02 now provides normalized conversation/message persistence, provider-neutr
 
 The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance. User-authored personal decision/preference signals receive stronger evidence confidence than equivalent assistant-authored statements, and candidates can carry an associated project identifier when known.
 
-Accepted candidates can now become **project evidence** without losing their provenance. A reviewed candidate can generate an idempotent project event containing the candidate ID, conversation ID, source message ID, confidence and evidence status. Rejected or unreviewed candidates are not projected into the project timeline.
+Accepted candidates can now become **project evidence** without losing their provenance. A reviewed candidate can generate an idempotent project event containing the candidate ID, conversation ID, source message ID, confidence and evidence status. Rejected or unreviewed candidates are not projected into the project timeline. The projection is currently exposed as a library capability and is the next candidate for CLI workflow integration.
 
 Conversation re-import is **evidence-preserving**. A later import can add timestamps, source location, external IDs, or metadata that was missing from the first import without replacing already-known values with blanks. Message-level timestamps and metadata are merged in the same way.
 
@@ -40,6 +40,7 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 12. Preserve richer provenance discovered by later imports rather than discarding it.
 13. Normalize source timestamps without discarding original source values.
 14. Only project candidate-derived project milestones after explicit review acceptance.
+15. Preserve candidate provenance when projecting reviewed evidence into project history.
 
 ## Status
 
