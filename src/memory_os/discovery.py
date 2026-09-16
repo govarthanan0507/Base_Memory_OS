@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from .core import Artifact, MemoryStore, Project
 
 PROJECT_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle", "CMakeLists.txt", "README.md", ".git"}
+DEPENDENCY_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle"}
 IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build"}
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".cpp", ".c", ".cs", ".rb", ".php", ".swift", ".kt"}
 MAX_HASH_BYTES = 20 * 1024 * 1024
+MAX_ANALYSIS_BYTES = 512 * 1024
+ENTRYPOINT_NAMES = {"main.py", "app.py", "server.py", "cli.py", "index.js", "index.ts", "main.go", "main.rs", "Program.cs"}
 
 
 def file_hash(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -36,8 +41,35 @@ def likely_project_roots(root: Path) -> list[Path]:
     return selected
 
 
+def _import_hints(path: Path) -> list[str]:
+    if path.suffix.lower() != ".py" or path.stat().st_size > MAX_ANALYSIS_BYTES:
+        return []
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, SyntaxError, UnicodeError):
+        return []
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module.split(".")[0])
+    return sorted(set(imports))[:20]
+
+
+def _text_import_hints(path: Path) -> list[str]:
+    if path.suffix.lower() not in {".js", ".ts", ".tsx", ".jsx"} or path.stat().st_size > MAX_ANALYSIS_BYTES:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    found = re.findall(r"(?:from|require\\(?)\\s*[\\\"']([^\\\"']+)", text)
+    return sorted({item.split("/")[0] for item in found})[:20]
+
+
 def inspect_project(root: Path) -> Project:
-    files, code_files, markers = [], [], []
+    files, code_files, markers, entrypoints, imports = [], [], [], [], set()
     total_bytes = 0
     for current, dirs, names in os.walk(root):
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
@@ -51,6 +83,10 @@ def inspect_project(root: Path) -> Project:
             total_bytes += stat.st_size
             if path.suffix.lower() in CODE_EXTENSIONS:
                 code_files.append(path)
+                if name in ENTRYPOINT_NAMES:
+                    entrypoints.append(str(path.relative_to(root)))
+                imports.update(_import_hints(path))
+                imports.update(_text_import_hints(path))
             if name in PROJECT_MARKERS:
                 markers.append(name)
     summary = ""
@@ -63,8 +99,19 @@ def inspect_project(root: Path) -> Project:
             pass
     name = summary or root.name.replace("_", " ").replace("-", " ").strip().title()
     status = "PARTIALLY BUILT" if code_files else "DISCOVERED"
-    metadata = {"file_count": len(files), "code_file_count": len(code_files), "total_bytes": total_bytes, "markers": sorted(set(markers)), "discovery_version": "0.1.1"}
-    confidence = min(0.95, 0.45 + (0.15 if code_files else 0) + (0.1 if summary else 0) + (0.1 if len(markers) > 1 else 0))
+    metadata = {
+        "file_count": len(files),
+        "code_file_count": len(code_files),
+        "total_bytes": total_bytes,
+        "markers": sorted(set(markers)),
+        "dependency_markers": sorted(set(markers) & DEPENDENCY_MARKERS),
+        "likely_entrypoints": sorted(set(entrypoints)),
+        "import_hints": sorted(imports),
+        "discovery_version": "0.2.0",
+    }
+    evidence = 0.45 + (0.15 if code_files else 0) + (0.1 if summary else 0) + (0.1 if len(markers) > 1 else 0)
+    evidence += min(0.1, 0.05 if entrypoints else 0) + min(0.1, 0.05 if (set(markers) & DEPENDENCY_MARKERS) else 0)
+    confidence = min(0.95, evidence)
     return Project(name=name, root=str(root), status=status, confidence=confidence, summary=summary, metadata=metadata)
 
 
