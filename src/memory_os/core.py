@@ -177,6 +177,15 @@ class MemoryStore:
                 "SELECT * FROM memories WHERE content LIKE ? ORDER BY observed_at DESC LIMIT ?",
                 (term, limit)))
 
+    def list_projects(self, limit: int = 50) -> list[sqlite3.Row]:
+        return list(self.conn.execute("SELECT * FROM projects ORDER BY rowid DESC LIMIT ?", (limit,)))
+
+    def list_artifacts(self, limit: int = 100) -> list[sqlite3.Row]:
+        return list(self.conn.execute("SELECT * FROM artifacts ORDER BY rowid DESC LIMIT ?", (limit,)))
+
+    def list_memories(self, limit: int = 50) -> list[sqlite3.Row]:
+        return list(self.conn.execute("SELECT * FROM memories ORDER BY observed_at DESC LIMIT ?", (limit,)))
+
     def counts(self) -> dict[str, int]:
         return {table: self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in ("memories", "projects", "artifacts", "relations")}
