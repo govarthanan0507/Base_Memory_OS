@@ -9,7 +9,7 @@ from .continuity import render_project_reentry_brief, render_reentry_brief
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
-from .evidence import record_conversation_candidates_as_project_events
+from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
 from .timeline import render_project_timeline
 
@@ -19,74 +19,60 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", default=".memory-os/memory.db", help="SQLite database path")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="Initialize the memory database")
-
     add = sub.add_parser("add-memory", help="Store a durable memory")
     add.add_argument("content")
     add.add_argument("--type", default="episodic")
     add.add_argument("--source", default="manual")
     add.add_argument("--confidence", type=float, default=1.0)
-
     search = sub.add_parser("search", help="Search stored memories")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=20)
-
     scan = sub.add_parser("scan-projects", help="Read-only project/file discovery")
     scan.add_argument("root", type=Path)
-
     report = sub.add_parser("project-report", help="Render deterministic structural evidence for a project")
     report.add_argument("project_id")
     report.add_argument("--limit", type=int, default=100)
-
     imp = sub.add_parser("import-conversation", help="Import a local conversation transcript")
     imp.add_argument("path", type=Path)
     imp.add_argument("--format", choices=("json", "markdown"), default=None)
     imp.add_argument("--source", default="local")
     imp.add_argument("--title", default=None)
-
     chatgpt = sub.add_parser("import-chatgpt-export", help="Import a ChatGPT conversations.json export")
     chatgpt.add_argument("path", type=Path)
-
     show = sub.add_parser("show-conversation", help="Show normalized messages")
     show.add_argument("conversation_id")
-
     conversations = sub.add_parser("list-conversations", help="List imported conversations")
     conversations.add_argument("--limit", type=int, default=50)
-
     relate = sub.add_parser("relate", help="Create a relationship between two known IDs")
     relate.add_argument("source_id")
     relate.add_argument("relation")
     relate.add_argument("target_id")
-
+    link = sub.add_parser("link-project-conversation", help="Explicitly link a project to a conversation")
+    link.add_argument("project_id")
+    link.add_argument("conversation_id")
     reentry = sub.add_parser("reentry", help="Render an evidence-based conversation re-entry brief")
     reentry.add_argument("conversation_id")
     reentry.add_argument("--limit", type=int, default=50)
-
     project_reentry = sub.add_parser("reentry-project", help="Render a project-centric re-entry brief")
     project_reentry.add_argument("project_id")
     project_reentry.add_argument("--limit", type=int, default=50)
-
     timeline = sub.add_parser("timeline-project", help="Render the recorded activity timeline for a project")
     timeline.add_argument("project_id")
     timeline.add_argument("--limit", type=int, default=100)
-
     candidates = sub.add_parser("extract-candidates", help="Extract and persist reviewable memory candidates")
     candidates.add_argument("conversation_id")
     candidates.add_argument("--limit", type=int, default=50)
     candidates.add_argument("--project-id", default=None)
-
     candidate_list = sub.add_parser("list-candidates", help="List memory candidates")
     candidate_list.add_argument("--status", choices=("candidate", "accepted", "rejected", "all"), default="candidate")
     candidate_list.add_argument("--limit", type=int, default=50)
-
     review = sub.add_parser("review-candidate", help="Accept or reject a memory candidate")
     review.add_argument("candidate_id")
     review.add_argument("decision", choices=("accepted", "rejected"))
-
     project_evidence = sub.add_parser("project-evidence", help="Project accepted conversation candidates into project history")
     project_evidence.add_argument("conversation_id")
     project_evidence.add_argument("project_id")
     project_evidence.add_argument("--candidate-id", action="append", dest="candidate_ids", default=None)
-
     return parser
 
 
@@ -96,16 +82,21 @@ def _project_report(store: MemoryStore, project_id: str, limit: int) -> str:
         raise KeyError(project_id)
     artifacts = store.conn.execute(
         "SELECT a.* FROM artifacts a JOIN relations r ON r.target_id=a.artifact_id "
-        "WHERE r.source_id=? AND r.relation='contains' ORDER BY a.location LIMIT ?",
-        (project_id, limit),
+        "WHERE r.source_id=? AND r.relation='contains' ORDER BY a.location LIMIT ?", (project_id, limit)
     ).fetchall()
     events = store.list_project_events(project_id, limit=limit)
+    conversations = store.conn.execute(
+        "SELECT r.target_id FROM relations r WHERE r.source_id=? AND r.relation='has_conversation' ORDER BY r.created_at",
+        (project_id,),
+    ).fetchall()
     lines = [f"# {project['name']}", "", f"- ID: `{project_id}`", f"- Root: `{project['root']}`",
              f"- Status: **{project['status']}**", f"- Confidence: {project['confidence']:.2f}"]
     if project["summary"]:
         lines += [f"- Summary: {project['summary']}"]
     metadata = json.loads(project["metadata_json"])
-    lines += ["", "## Structural evidence", "", "```json", json.dumps(metadata, indent=2, sort_keys=True), "```"]
+    lines += ["", "## Structural evidence", "", "```json", json.dumps(metadata, indent=2, sort_keys=True), "```",
+              "", "## Linked conversations", ""]
+    lines.extend(f"- `{row['target_id']}`" for row in conversations)
     lines += ["", "## Artifacts", ""]
     lines.extend(f"- `{row['location']}` [{row['artifact_type']}] hash={row['content_hash'] or 'unhashed'}" for row in artifacts)
     lines += ["", "## Project events", ""]
@@ -135,11 +126,7 @@ def main() -> int:
             print(_project_report(store, args.project_id, args.limit))
         elif args.command == "import-conversation":
             fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
-            if fmt == "json":
-                cid = import_json(store, args.path)
-            else:
-                cid = import_markdown(store, args.path, source=args.source, title=args.title)
-            print(cid)
+            print(import_json(store, args.path) if fmt == "json" else import_markdown(store, args.path, source=args.source, title=args.title))
         elif args.command == "import-chatgpt-export":
             print(f"Imported {import_chatgpt_export(store, args.path)} conversation(s)")
         elif args.command == "show-conversation":
@@ -151,6 +138,8 @@ def main() -> int:
         elif args.command == "relate":
             store.relate(args.source_id, args.relation, args.target_id)
             print(f"Related {args.source_id} --{args.relation}--> {args.target_id}")
+        elif args.command == "link-project-conversation":
+            print(link_conversation_to_project(store, args.conversation_id, args.project_id))
         elif args.command == "reentry":
             print(render_reentry_brief(store, args.conversation_id, args.limit))
         elif args.command == "reentry-project":
@@ -169,9 +158,7 @@ def main() -> int:
         elif args.command == "review-candidate":
             print(store.review_candidate(args.candidate_id, args.decision))
         elif args.command == "project-evidence":
-            event_ids = record_conversation_candidates_as_project_events(
-                store, args.conversation_id, args.project_id, candidate_ids=args.candidate_ids
-            )
+            event_ids = record_conversation_candidates_as_project_events(store, args.conversation_id, args.project_id, candidate_ids=args.candidate_ids)
             print(f"Projected {len(event_ids)} accepted candidate event(s)")
             for event_id in event_ids:
                 print(event_id)
