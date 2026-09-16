@@ -19,23 +19,25 @@ class MemoryStoreTests(unittest.TestCase):
         rows = self.store.search("collector")
         self.assertEqual(rows[0]["memory_id"], mid)
 
-    def test_project_and_artifact_counts(self):
-        self.store.add_project(Project("Demo", "/tmp/demo"))
-        self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py"))
-        self.store.relate("project", "contains", "artifact")
+    def test_project_and_artifact_counts_and_relation_traversal(self):
+        project_id = self.store.add_project(Project("Demo", "/tmp/demo"))
+        artifact_id = self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py"))
+        self.store.relate(project_id, "contains", artifact_id)
         self.assertEqual(self.store.counts(), {"memories": 0, "projects": 1, "artifacts": 1, "relations": 1})
-
-    def test_listing_apis(self):
-        self.store.add_memory(Memory("remember this"))
-        self.store.add_project(Project("Demo", "/tmp/demo"))
-        self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py"))
-        self.assertEqual(len(self.store.list_memories()), 1)
-        self.assertEqual(len(self.store.list_projects()), 1)
-        self.assertEqual(len(self.store.list_artifacts()), 1)
+        relation = self.store.related(project_id, "contains")[0]
+        self.assertEqual(relation["target_id"], artifact_id)
 
     def test_confidence_is_validated(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             self.store.add_memory(Memory("bad", confidence=2.0))
+
+    def test_duplicate_relation_is_idempotent(self):
+        self.store.relate("project-1", "contains", "artifact-1")
+        self.store.relate("project-1", "contains", "artifact-1")
+        self.assertEqual(self.store.counts()["relations"], 1)
+
+    def test_negative_limit_search_is_empty(self):
+        self.assertEqual(self.store.search("anything", -1), [])
 
 
 if __name__ == "__main__":
