@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_os.conversation import get_messages
+from memory_os.conversation import get_conversation, get_messages
 from memory_os.core import MemoryStore
 from memory_os.importers import import_json, import_markdown
 
@@ -28,6 +28,42 @@ class ConversationTests(unittest.TestCase):
                 cid2 = import_json(store, source)
                 self.assertEqual(cid1, cid2)
                 self.assertEqual(len(get_messages(store, cid1)), 2)
+            finally:
+                store.close()
+
+    def test_reimport_merges_richer_provenance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "chat.json"
+            base = {
+                "id": "chat-1", "source": "chatgpt", "title": "Test chat",
+                "messages": [{"id": "m1", "role": "user", "content": "Hello"}],
+            }
+            source.write_text(json.dumps(base), encoding="utf-8")
+            store = MemoryStore(root / "db.sqlite")
+            try:
+                cid = import_json(store, source)
+                richer = {
+                    **base,
+                    "started_at": "2026-09-10T10:00:00+00:00",
+                    "ended_at": "2026-09-10T10:30:00+00:00",
+                    "source_location": "/exports/chat-1.json",
+                    "metadata": {"workspace": "memory-os"},
+                    "messages": [{
+                        "id": "m1", "role": "user", "content": "Hello",
+                        "observed_at": "2026-09-10T10:01:00+00:00",
+                        "metadata": {"node_id": "node-1"},
+                    }],
+                }
+                source.write_text(json.dumps(richer), encoding="utf-8")
+                self.assertEqual(import_json(store, source), cid)
+                conversation = get_conversation(store, cid)
+                self.assertEqual(conversation["started_at"], richer["started_at"])
+                self.assertEqual(conversation["source_location"], richer["source_location"])
+                self.assertIn("workspace", json.loads(conversation["metadata_json"]))
+                message = get_messages(store, cid)[0]
+                self.assertEqual(message["observed_at"], richer["messages"][0]["observed_at"])
+                self.assertIn("node_id", json.loads(message["metadata_json"]))
             finally:
                 store.close()
 
