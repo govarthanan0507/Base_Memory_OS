@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 def utc_now() -> str:
@@ -98,7 +98,13 @@ class MemoryStore:
         )
         self.conn.commit()
 
+    @staticmethod
+    def _validate_confidence(confidence: float) -> None:
+        if not 0.0 <= confidence <= 1.0:
+            raise ValueError("confidence must be between 0 and 1")
+
     def add_memory(self, memory: Memory) -> str:
+        self._validate_confidence(memory.confidence)
         self.conn.execute(
             "INSERT OR REPLACE INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)",
             (memory.memory_id, memory.content, memory.memory_type, memory.source,
@@ -111,29 +117,48 @@ class MemoryStore:
         return memory.memory_id
 
     def add_project(self, project: Project) -> str:
-        self.conn.execute(
-            """INSERT INTO projects VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(root) DO UPDATE SET name=excluded.name,status=excluded.status,
-               confidence=excluded.confidence,summary=excluded.summary,metadata_json=excluded.metadata_json""",
-            (project.project_id, project.name, project.root, project.status, project.confidence,
-             project.summary, json.dumps(project.metadata, sort_keys=True)),
-        )
+        self._validate_confidence(project.confidence)
+        existing = self.conn.execute("SELECT project_id FROM projects WHERE root = ?", (project.root,)).fetchone()
+        if existing:
+            project_id = existing[0]
+            self.conn.execute(
+                """UPDATE projects SET name=?, status=?, confidence=?, summary=?, metadata_json=?
+                   WHERE project_id=?""",
+                (project.name, project.status, project.confidence, project.summary,
+                 json.dumps(project.metadata, sort_keys=True), project_id),
+            )
+        else:
+            project_id = project.project_id
+            self.conn.execute(
+                "INSERT INTO projects VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (project_id, project.name, project.root, project.status, project.confidence,
+                 project.summary, json.dumps(project.metadata, sort_keys=True)),
+            )
         self.conn.commit()
-        return project.project_id
+        return project_id
 
     def add_artifact(self, artifact: Artifact) -> str:
-        self.conn.execute(
-            """INSERT INTO artifacts VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(location) DO UPDATE SET name=excluded.name,
-               artifact_type=excluded.artifact_type,content_hash=excluded.content_hash,
-               modified_at=excluded.modified_at,metadata_json=excluded.metadata_json""",
-            (artifact.artifact_id, artifact.name, artifact.artifact_type, artifact.location,
-             artifact.content_hash, artifact.modified_at, json.dumps(artifact.metadata, sort_keys=True)),
-        )
+        existing = self.conn.execute("SELECT artifact_id FROM artifacts WHERE location = ?", (artifact.location,)).fetchone()
+        if existing:
+            artifact_id = existing[0]
+            self.conn.execute(
+                """UPDATE artifacts SET name=?, artifact_type=?, content_hash=?, modified_at=?, metadata_json=?
+                   WHERE artifact_id=?""",
+                (artifact.name, artifact.artifact_type, artifact.content_hash, artifact.modified_at,
+                 json.dumps(artifact.metadata, sort_keys=True), artifact_id),
+            )
+        else:
+            artifact_id = artifact.artifact_id
+            self.conn.execute(
+                "INSERT INTO artifacts VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (artifact_id, artifact.name, artifact.artifact_type, artifact.location,
+                 artifact.content_hash, artifact.modified_at, json.dumps(artifact.metadata, sort_keys=True)),
+            )
         self.conn.commit()
-        return artifact.artifact_id
+        return artifact_id
 
-    def relate(self, source_id: str, relation: str, target_id: str, metadata: dict[str, Any] | None = None) -> None:
+    def relate(self, source_id: str, relation: str, target_id: str,
+               metadata: dict[str, Any] | None = None) -> None:
         self.conn.execute(
             "INSERT OR IGNORE INTO relations VALUES (?, ?, ?, ?, ?, ?)",
             (stable_id(source_id, relation, target_id), source_id, relation, target_id,
