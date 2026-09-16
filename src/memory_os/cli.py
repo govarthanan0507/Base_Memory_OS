@@ -6,7 +6,7 @@ from pathlib import Path
 from .conversation import get_messages
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
-from .importers import import_json, import_markdown
+from .importers import import_chatgpt_export, import_json, import_markdown
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     imp.add_argument("--format", choices=("json", "markdown"), default=None)
     imp.add_argument("--source", default="local")
     imp.add_argument("--title", default=None)
+
+    chatgpt = sub.add_parser("import-chatgpt-export", help="Import a ChatGPT conversations.json export")
+    chatgpt.add_argument("path", type=Path)
 
     show = sub.add_parser("show-conversation", help="Show normalized messages")
     show.add_argument("conversation_id")
@@ -63,6 +66,8 @@ def main() -> int:
             else:
                 cid = import_markdown(store, args.path, source=args.source, title=args.title)
             print(cid)
+        elif args.command == "import-chatgpt-export":
+            print(f"Imported {import_chatgpt_export(store, args.path)} conversation(s)")
         elif args.command == "show-conversation":
             for row in get_messages(store, args.conversation_id):
                 print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
