@@ -111,6 +111,13 @@ class MemoryStore:
                 location TEXT NOT NULL UNIQUE, content_hash TEXT, modified_at TEXT,
                 metadata_json TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS artifact_events (
+                event_id TEXT PRIMARY KEY, artifact_id TEXT NOT NULL,
+                event_type TEXT NOT NULL, timestamp TEXT NOT NULL,
+                old_hash TEXT, new_hash TEXT, old_modified_at TEXT, new_modified_at TEXT,
+                metadata_json TEXT NOT NULL,
+                UNIQUE(artifact_id, event_type, timestamp, old_hash, new_hash, old_modified_at, new_modified_at)
+            );
             CREATE TABLE IF NOT EXISTS relations (
                 relation_id TEXT PRIMARY KEY, source_id TEXT NOT NULL,
                 relation TEXT NOT NULL, target_id TEXT NOT NULL,
@@ -191,10 +198,11 @@ class MemoryStore:
                           metadata: dict[str, Any] | None = None) -> str:
         if not event_type.strip() or not summary.strip():
             raise ValueError("event_type and summary must be non-empty")
-        event_id = stable_id(project_id, event_type.strip(), timestamp or utc_now(), summary.strip())
+        event_timestamp = timestamp or utc_now()
+        event_id = stable_id(project_id, event_type.strip(), event_timestamp, summary.strip())
         self.conn.execute(
             "INSERT OR IGNORE INTO project_events VALUES (?, ?, ?, ?, ?, ?)",
-            (event_id, project_id, event_type.strip(), timestamp or utc_now(), summary.strip(),
+            (event_id, project_id, event_type.strip(), event_timestamp, summary.strip(),
              json.dumps(metadata or {}, sort_keys=True)),
         )
         self.conn.commit()
@@ -242,14 +250,24 @@ class MemoryStore:
         return project_id
 
     def add_artifact(self, artifact: Artifact) -> str:
-        existing = self.conn.execute("SELECT artifact_id FROM artifacts WHERE location = ?", (artifact.location,)).fetchone()
+        existing = self.conn.execute("SELECT * FROM artifacts WHERE location = ?", (artifact.location,)).fetchone()
         if existing:
-            artifact_id = existing[0]
+            artifact_id = existing["artifact_id"]
+            changed = (existing["content_hash"] != artifact.content_hash or
+                       existing["modified_at"] != artifact.modified_at)
             self.conn.execute(
                 "UPDATE artifacts SET name=?, artifact_type=?, content_hash=?, modified_at=?, metadata_json=? WHERE artifact_id=?",
                 (artifact.name, artifact.artifact_type, artifact.content_hash, artifact.modified_at,
                  json.dumps(artifact.metadata, sort_keys=True), artifact_id),
             )
+            if changed:
+                self.add_artifact_event(
+                    artifact_id,
+                    "changed",
+                    existing["content_hash"], artifact.content_hash,
+                    existing["modified_at"], artifact.modified_at,
+                    {"location": artifact.location},
+                )
         else:
             artifact_id = artifact.artifact_id
             self.conn.execute(
@@ -257,8 +275,36 @@ class MemoryStore:
                 (artifact_id, artifact.name, artifact.artifact_type, artifact.location,
                  artifact.content_hash, artifact.modified_at, json.dumps(artifact.metadata, sort_keys=True)),
             )
+            self.add_artifact_event(
+                artifact_id, "discovered", None, artifact.content_hash, None, artifact.modified_at,
+                {"location": artifact.location},
+            )
         self.conn.commit()
         return artifact_id
+
+    def add_artifact_event(self, artifact_id: str, event_type: str,
+                           old_hash: str | None, new_hash: str | None,
+                           old_modified_at: str | None, new_modified_at: str | None,
+                           metadata: dict[str, Any] | None = None,
+                           timestamp: str | None = None) -> str:
+        event_timestamp = timestamp or utc_now()
+        event_id = stable_id(artifact_id, event_type, event_timestamp,
+                             old_hash or "", new_hash or "",
+                             old_modified_at or "", new_modified_at or "")
+        self.conn.execute(
+            "INSERT OR IGNORE INTO artifact_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (event_id, artifact_id, event_type, event_timestamp, old_hash, new_hash,
+             old_modified_at, new_modified_at, json.dumps(metadata or {}, sort_keys=True)),
+        )
+        self.conn.commit()
+        return event_id
+
+    def list_artifact_events(self, artifact_id: str, limit: int = 100) -> list[sqlite3.Row]:
+        if limit < 1:
+            return []
+        return list(self.conn.execute(
+            "SELECT * FROM artifact_events WHERE artifact_id=? ORDER BY timestamp DESC LIMIT ?",
+            (artifact_id, limit)))
 
     def relate(self, source_id: str, relation: str, target_id: str,
                metadata: dict[str, Any] | None = None) -> None:
@@ -304,7 +350,7 @@ class MemoryStore:
 
     def counts(self) -> dict[str, int]:
         return {table: self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                for table in ("memories", "memory_candidates", "projects", "project_events", "artifacts", "relations")}
+                for table in ("memories", "memory_candidates", "projects", "project_events", "artifacts", "artifact_events", "relations")}
 
 
 __all__ = ["Artifact", "Memory", "MemoryCandidateRecord", "MemoryStore", "Project", "stable_id", "utc_now"]
