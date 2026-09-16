@@ -25,6 +25,14 @@ class MemoryStoreTests(unittest.TestCase):
         self.store.relate("project", "contains", "artifact")
         self.assertEqual(self.store.counts(), {"memories": 0, "projects": 1, "artifacts": 1, "relations": 1})
 
+    def test_listing_apis(self):
+        self.store.add_memory(Memory("remember this"))
+        self.store.add_project(Project("Demo", "/tmp/demo"))
+        self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py"))
+        self.assertEqual(len(self.store.list_memories()), 1)
+        self.assertEqual(len(self.store.list_projects()), 1)
+        self.assertEqual(len(self.store.list_artifacts()), 1)
+
     def test_confidence_is_validated(self):
         with self.assertRaises(Exception):
             self.store.add_memory(Memory("bad", confidence=2.0))
