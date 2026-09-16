@@ -4,6 +4,7 @@ import ast
 import hashlib
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .core import Artifact, MemoryStore, Project
@@ -25,6 +26,36 @@ def file_hash(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+def _git_evidence(root: Path) -> dict[str, str | bool]:
+    git_dir = root / ".git"
+    if not git_dir.is_dir():
+        return {"is_git_repository": False}
+    evidence: dict[str, str | bool] = {"is_git_repository": True}
+    try:
+        head = (git_dir / "HEAD").read_text(encoding="utf-8", errors="replace").strip()
+        if head.startswith("ref: "):
+            ref = head[6:].strip()
+            evidence["git_branch"] = ref.removeprefix("refs/heads/")
+            ref_path = git_dir / ref
+            if ref_path.is_file():
+                evidence["git_head"] = ref_path.read_text(encoding="ascii", errors="replace").strip()
+            else:
+                packed = git_dir / "packed-refs"
+                if packed.is_file():
+                    for line in packed.read_text(encoding="ascii", errors="replace").splitlines():
+                        if line and not line.startswith("#") and not line.startswith("^"):
+                            commit, packed_ref = line.split(" ", 1)
+                            if packed_ref.strip() == ref:
+                                evidence["git_head"] = commit.strip()
+                                break
+        elif head:
+            evidence["git_head"] = head
+            evidence["git_head_state"] = "detached"
+    except OSError:
+        evidence["git_metadata_readable"] = False
+    return evidence
+
+
 def likely_project_roots(root: Path) -> list[Path]:
     root = root.resolve()
     candidates = []
@@ -42,9 +73,9 @@ def likely_project_roots(root: Path) -> list[Path]:
 
 
 def _import_hints(path: Path) -> list[str]:
-    if path.suffix.lower() != ".py" or path.stat().st_size > MAX_ANALYSIS_BYTES:
-        return []
     try:
+        if path.suffix.lower() != ".py" or path.stat().st_size > MAX_ANALYSIS_BYTES:
+            return []
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError, UnicodeError):
         return []
@@ -58,14 +89,18 @@ def _import_hints(path: Path) -> list[str]:
 
 
 def _text_import_hints(path: Path) -> list[str]:
-    if path.suffix.lower() not in {".js", ".ts", ".tsx", ".jsx"} or path.stat().st_size > MAX_ANALYSIS_BYTES:
-        return []
     try:
+        if path.suffix.lower() not in {".js", ".ts", ".tsx", ".jsx"} or path.stat().st_size > MAX_ANALYSIS_BYTES:
+            return []
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
     found = re.findall(r'''(?:from|require\()\s*["']([^"']+)''', text)
     return sorted({item.split("/")[0] for item in found})[:20]
+
+
+def _iso_mtime(path: Path, stat: os.stat_result) -> str:
+    return datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
 
 def inspect_project(root: Path) -> Project:
@@ -98,6 +133,7 @@ def inspect_project(root: Path) -> Project:
         except OSError:
             pass
     name = summary or root.name.replace("_", " ").replace("-", " ").strip().title()
+    git = _git_evidence(root)
     status = "PARTIALLY BUILT" if code_files else "DISCOVERED"
     metadata = {
         "file_count": len(files),
@@ -107,7 +143,8 @@ def inspect_project(root: Path) -> Project:
         "dependency_markers": sorted(set(markers) & DEPENDENCY_MARKERS),
         "likely_entrypoints": sorted(set(entrypoints)),
         "import_hints": sorted(imports),
-        "discovery_version": "0.2.1",
+        "git": git,
+        "discovery_version": "0.3.0",
     }
     evidence = 0.45 + (0.15 if code_files else 0) + (0.1 if summary else 0) + (0.1 if len(markers) > 1 else 0)
     evidence += min(0.1, 0.05 if entrypoints else 0) + min(0.1, 0.05 if (set(markers) & DEPENDENCY_MARKERS) else 0)
@@ -130,7 +167,8 @@ def scan_workspace(root: str | Path, store: MemoryStore) -> list[Project]:
                     stat = path.stat()
                 except OSError:
                     continue
-                artifact_id = store.add_artifact(Artifact(name=name, artifact_type="code" if path.suffix.lower() in CODE_EXTENSIONS else "file", location=str(path.resolve()), content_hash=file_hash(path) if stat.st_size <= MAX_HASH_BYTES else None, modified_at=str(stat.st_mtime), metadata={"project_root": str(project_root.resolve())}))
+                modified_at = _iso_mtime(path, stat)
+                artifact_id = store.add_artifact(Artifact(name=name, artifact_type="code" if path.suffix.lower() in CODE_EXTENSIONS else "file", location=str(path.resolve()), content_hash=file_hash(path) if stat.st_size <= MAX_HASH_BYTES else None, modified_at=modified_at, metadata={"project_root": str(project_root.resolve())}))
                 store.relate(project_id, "contains", artifact_id)
     return projects
 
