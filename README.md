@@ -20,24 +20,6 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 6. Keep external model providers replaceable.
 7. Build in small, testable increments.
 
-## Repository map
-
-```text
-src/memory_os/
-  core/          domain models and SQLite persistence
-  discovery/     read-only filesystem/project intelligence
-  cli.py         command-line interface
-
-docs/
-  governance/    project rules and roadmap
-  implementations/IMPL-01-memory-core/
-                 BRD / FRD / PRD / TRD + implementation log
-
-tests/           automated tests
-```
-
 ## Status
 
-This is an actively evolving personal system. IMPL-01 is the foundation, not the finished Personal Memory OS.
-
-Next milestones: conversation ingestion, richer artifact/project intelligence, research-memory integration, re-entry briefings, and cross-agent continuity.
+IMPL-01 is the foundation, not the finished Personal Memory OS.
