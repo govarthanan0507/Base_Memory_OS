@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.5
+v0.6
 
 ## Status
 
-In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, and project activity timeline foundations implemented.
+In progress — normalized conversation storage, local import, graph linkage, candidate-memory admission, project re-entry, project activity timeline, and role-aware candidate extraction foundations implemented.
 
 ## Completed
 
@@ -35,6 +35,8 @@ In progress — normalized conversation storage, local import, graph linkage, ca
 - `src/memory_os/candidates.py`
   - conservative extraction of explicit decisions, preferences, tasks, and unresolved items
   - candidate-only output with confidence and source message provenance
+  - role-aware confidence adjustment for personal decision/preference signals
+  - optional project context attached to candidate metadata
   - no automatic durable-memory promotion
 - `src/memory_os/core.py`
   - persistent reviewable candidate storage
@@ -56,6 +58,7 @@ In progress — normalized conversation storage, local import, graph linkage, ca
   - conversation → project → artifact continuity
   - project-centric conversation/artifact/memory continuity
   - candidate extraction and admission boundary
+  - role-aware candidate confidence and project context
   - project timeline and missing-project behavior
 
 ## Current limitation
@@ -66,12 +69,12 @@ Candidate extraction is intentionally heuristic and conservative. It is not yet 
 
 ## Next
 
-1. Strengthen candidate extraction with conversation/project context and source-role filtering.
-2. Preserve richer source timestamps and metadata consistently across all import paths.
-3. Add semantic project activity events and status transitions without overwriting historical evidence.
-4. Validate against a real user export fixture before declaring IMPL-02 complete.
-5. Add provider adapters only from verified export formats; do not invent provider schemas.
-6. Begin stronger multi-hop continuity and cross-agent source reconciliation.
+1. Preserve richer source timestamps and metadata consistently across all import paths.
+2. Add semantic project activity events and status transitions without overwriting historical evidence.
+3. Validate against a real user export fixture before declaring IMPL-02 complete.
+4. Add provider adapters only from verified export formats; do not invent provider schemas.
+5. Begin stronger multi-hop continuity and cross-agent source reconciliation.
+6. Prepare the IMPL-02 completion gate and transition into IMPL-03 Project & File Intelligence.
 
 ## Safety
 
