@@ -25,10 +25,20 @@ class MemoryStoreTests(unittest.TestCase):
         self.store.relate(project_id, "contains", artifact_id)
         self.assertEqual(self.store.counts(), {
             "memories": 0, "memory_candidates": 0, "projects": 1,
-            "project_events": 1, "artifacts": 1, "relations": 1,
+            "project_events": 1, "artifacts": 1, "artifact_events": 1, "relations": 1,
         })
         relation = self.store.related(project_id, "contains")[0]
         self.assertEqual(relation["target_id"], artifact_id)
+
+    def test_artifact_changes_are_historical_and_repeatable(self):
+        artifact_id = self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py", content_hash="aaa", modified_at="2026-01-01T00:00:00+00:00"))
+        self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py", content_hash="bbb", modified_at="2026-01-02T00:00:00+00:00"))
+        self.store.add_artifact(Artifact("main.py", "code", "/tmp/demo/main.py", content_hash="bbb", modified_at="2026-01-02T00:00:00+00:00"))
+        events = self.store.list_artifact_events(artifact_id)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["old_hash"], "aaa")
+        self.assertEqual(events[0]["new_hash"], "bbb")
+        self.assertEqual(events[1]["event_type"], "discovered")
 
     def test_project_status_changes_are_historical_events(self):
         project_id = self.store.add_project(Project("Demo", "/tmp/demo", status="DISCOVERED"))
