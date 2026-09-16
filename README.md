@@ -4,15 +4,17 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-02 — Conversation Memory v0.8**
+**IMPL-02 — Conversation Memory v0.9**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships, lexical retrieval, read-only project discovery, tests and CI.
 
-IMPL-02 now provides normalized conversation/message persistence, provider-neutral import boundaries, ChatGPT export ingestion, conversation/project/artifact continuity, conversation and project re-entry briefs, conservative memory-candidate extraction, explicit candidate review/promotion, project activity timelines, role/project-aware candidate evidence, historical project lifecycle events, and richer provenance merging on re-import.
+IMPL-02 now provides normalized conversation/message persistence, provider-neutral import boundaries, ChatGPT export ingestion, conversation/project/artifact continuity, conversation and project re-entry briefs, conservative memory-candidate extraction, explicit candidate review/promotion, project activity timelines, role/project-aware candidate evidence, historical project lifecycle events, richer provenance merging on re-import, and normalized ChatGPT source timestamps.
 
 The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance. User-authored personal decision/preference signals receive stronger evidence confidence than equivalent assistant-authored statements, and candidates can carry an associated project identifier when known.
 
-Conversation re-import is now **evidence-preserving**. A later import can add timestamps, source location, external IDs, or metadata that was missing from the first import without replacing already-known values with blanks. Message-level timestamps and metadata are merged in the same way.
+Conversation re-import is **evidence-preserving**. A later import can add timestamps, source location, external IDs, or metadata that was missing from the first import without replacing already-known values with blanks. Message-level timestamps and metadata are merged in the same way.
+
+ChatGPT exports now have source epoch timestamps normalized to UTC ISO-8601, with message-level observed times and selected raw structural metadata retained for provenance.
 
 Project lifecycle changes are preserved as explicit append-only events rather than only overwriting the current project status. The timeline therefore has historical evidence while current state remains directly queryable.
 
@@ -34,11 +36,12 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 10. Keep continuity anchored to conversations, projects, artifacts and their relationships.
 11. Preserve lifecycle history instead of treating current state as the whole story.
 12. Preserve richer provenance discovered by later imports rather than discarding it.
+13. Normalize source timestamps without discarding original source values.
 
 ## Status
 
 - **IMPL-01 foundation:** implemented.
-- **IMPL-02 conversation normalization:** implemented through the current provenance-merge milestone.
+- **IMPL-02 conversation normalization:** implemented through the current timestamp-normalization milestone.
 - **Conversation continuity:** implemented for conversation ↔ project ↔ artifact relationships and re-entry briefs.
 - **Candidate extraction:** implemented as conservative, provenance-preserving candidate generation.
 - **Candidate persistence/review boundary:** implemented; explicit acceptance is required for durable promotion.
@@ -46,6 +49,7 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 - **Role/project-aware candidates:** implemented with role-sensitive confidence and optional project context.
 - **Historical project events:** implemented for project creation and status changes, plus explicit idempotent event insertion.
 - **Conversation provenance merge:** implemented for later-discovered conversation/message timestamps and metadata.
+- **ChatGPT timestamp normalization:** implemented for conversation/message source timestamps with UTC normalization and raw timestamp retention.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
 
 ## Roadmap
