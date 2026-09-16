@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.1
+v0.2
 
 ## Status
 
-In progress — normalized conversation storage and local import path implemented.
+In progress — normalized conversation storage, local import, graph linkage support, and first re-entry context foundation implemented.
 
 ## Completed
 
@@ -28,6 +28,10 @@ In progress — normalized conversation storage and local import path implemente
   - `import-conversation`
   - `import-chatgpt-export`
   - `show-conversation`
+- `src/memory_os/continuity.py`
+  - related-record traversal
+  - compact conversation context packet
+  - deterministic Markdown re-entry brief rendering
 - `tests/test_conversation.py`
   - idempotent import
   - source preservation
@@ -37,10 +41,11 @@ In progress — normalized conversation storage and local import path implemente
 
 1. Add export adapters for other providers, beginning with Claude-compatible local exports.
 2. Preserve richer source timestamps and metadata where available.
-3. Add conversation-to-project and conversation-to-artifact relations.
+3. Add conversation-to-project and conversation-to-artifact relation helpers and CLI support.
 4. Add candidate memory extraction without committing inferred memories automatically.
 5. Validate against a real user export fixture before declaring IMPL-02 complete.
+6. Build project-centric re-entry: project → conversations → artifacts → recent activity.
 
 ## Safety
 
-Import is additive and does not modify source export files. Files are not moved or deleted.
+Import is additive and does not modify source export files. Files are not moved or deleted. Re-entry output is evidence-based and only includes relationships already present in the local graph.
