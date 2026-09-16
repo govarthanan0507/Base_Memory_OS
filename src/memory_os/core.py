@@ -53,7 +53,7 @@ class Project:
 
 
 class MemoryStore:
-    """Small SQLite-backed source of truth for IMPL-01."""
+    """Small SQLite-backed source of truth for the memory OS."""
 
     def __init__(self, db_path: str | Path = ".memory-os/memory.db") -> None:
         self.db_path = Path(db_path)
@@ -122,8 +122,7 @@ class MemoryStore:
         if existing:
             project_id = existing[0]
             self.conn.execute(
-                """UPDATE projects SET name=?, status=?, confidence=?, summary=?, metadata_json=?
-                   WHERE project_id=?""",
+                "UPDATE projects SET name=?, status=?, confidence=?, summary=?, metadata_json=? WHERE project_id=?",
                 (project.name, project.status, project.confidence, project.summary,
                  json.dumps(project.metadata, sort_keys=True), project_id),
             )
@@ -142,8 +141,7 @@ class MemoryStore:
         if existing:
             artifact_id = existing[0]
             self.conn.execute(
-                """UPDATE artifacts SET name=?, artifact_type=?, content_hash=?, modified_at=?, metadata_json=?
-                   WHERE artifact_id=?""",
+                "UPDATE artifacts SET name=?, artifact_type=?, content_hash=?, modified_at=?, metadata_json=? WHERE artifact_id=?",
                 (artifact.name, artifact.artifact_type, artifact.content_hash, artifact.modified_at,
                  json.dumps(artifact.metadata, sort_keys=True), artifact_id),
             )
@@ -159,14 +157,27 @@ class MemoryStore:
 
     def relate(self, source_id: str, relation: str, target_id: str,
                metadata: dict[str, Any] | None = None) -> None:
+        if not relation.strip():
+            raise ValueError("relation must be non-empty")
         self.conn.execute(
             "INSERT OR IGNORE INTO relations VALUES (?, ?, ?, ?, ?, ?)",
-            (stable_id(source_id, relation, target_id), source_id, relation, target_id,
+            (stable_id(source_id, relation, target_id), source_id, relation.strip(), target_id,
              utc_now(), json.dumps(metadata or {}, sort_keys=True)),
         )
         self.conn.commit()
 
+    def related(self, entity_id: str, relation: str | None = None) -> list[sqlite3.Row]:
+        if relation is None:
+            return list(self.conn.execute(
+                "SELECT * FROM relations WHERE source_id=? OR target_id=? ORDER BY created_at",
+                (entity_id, entity_id)))
+        return list(self.conn.execute(
+            "SELECT * FROM relations WHERE (source_id=? OR target_id=?) AND relation=? ORDER BY created_at",
+            (entity_id, entity_id, relation)))
+
     def search(self, query: str, limit: int = 20) -> list[sqlite3.Row]:
+        if limit < 1:
+            return []
         try:
             return list(self.conn.execute(
                 "SELECT m.* FROM memory_fts f JOIN memories m ON m.memory_id=f.memory_id "
