@@ -52,6 +52,19 @@ class Project:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class MemoryCandidateRecord:
+    content: str
+    memory_type: str
+    source: str
+    source_message_id: str | None = None
+    confidence: float = 0.5
+    status: str = "candidate"
+    observed_at: str = field(default_factory=utc_now)
+    candidate_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 class MemoryStore:
     """Small SQLite-backed source of truth for the memory OS."""
 
@@ -73,6 +86,13 @@ class MemoryStore:
                 memory_id TEXT PRIMARY KEY, content TEXT NOT NULL,
                 memory_type TEXT NOT NULL, source TEXT NOT NULL,
                 confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+                observed_at TEXT NOT NULL, metadata_json TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS memory_candidates (
+                candidate_id TEXT PRIMARY KEY, content TEXT NOT NULL,
+                memory_type TEXT NOT NULL, source TEXT NOT NULL,
+                source_message_id TEXT, confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+                status TEXT NOT NULL CHECK(status IN ('candidate', 'accepted', 'rejected')),
                 observed_at TEXT NOT NULL, metadata_json TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS projects (
@@ -115,6 +135,50 @@ class MemoryStore:
                           (memory.memory_id, memory.content, memory.memory_type, memory.source))
         self.conn.commit()
         return memory.memory_id
+
+    def add_candidate(self, candidate: MemoryCandidateRecord) -> str:
+        self._validate_confidence(candidate.confidence)
+        if candidate.status not in {"candidate", "accepted", "rejected"}:
+            raise ValueError("candidate status must be candidate, accepted, or rejected")
+        self.conn.execute(
+            "INSERT OR REPLACE INTO memory_candidates VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (candidate.candidate_id, candidate.content, candidate.memory_type, candidate.source,
+             candidate.source_message_id, candidate.confidence, candidate.status,
+             candidate.observed_at, json.dumps(candidate.metadata, sort_keys=True)),
+        )
+        self.conn.commit()
+        return candidate.candidate_id
+
+    def list_candidates(self, status: str = "candidate", limit: int = 50) -> list[sqlite3.Row]:
+        if limit < 1:
+            return []
+        if status not in {"candidate", "accepted", "rejected", "all"}:
+            raise ValueError("invalid candidate status")
+        if status == "all":
+            return list(self.conn.execute(
+                "SELECT * FROM memory_candidates ORDER BY observed_at DESC LIMIT ?", (limit,)))
+        return list(self.conn.execute(
+            "SELECT * FROM memory_candidates WHERE status=? ORDER BY observed_at DESC LIMIT ?",
+            (status, limit)))
+
+    def review_candidate(self, candidate_id: str, decision: str) -> str:
+        if decision not in {"accepted", "rejected"}:
+            raise ValueError("decision must be accepted or rejected")
+        row = self.conn.execute("SELECT * FROM memory_candidates WHERE candidate_id=?", (candidate_id,)).fetchone()
+        if row is None:
+            raise KeyError(candidate_id)
+        if row["status"] != "candidate":
+            raise ValueError("candidate has already been reviewed")
+        self.conn.execute("UPDATE memory_candidates SET status=? WHERE candidate_id=?", (decision, candidate_id))
+        if decision == "accepted":
+            memory = Memory(content=row["content"], memory_type=row["memory_type"],
+                            source=f"candidate:{candidate_id}", confidence=row["confidence"],
+                            observed_at=row["observed_at"], metadata={**json.loads(row["metadata_json"]),
+                                                                       "candidate_id": candidate_id,
+                                                                       "source_message_id": row["source_message_id"]})
+            self.add_memory(memory)
+        self.conn.commit()
+        return candidate_id
 
     def add_project(self, project: Project) -> str:
         self._validate_confidence(project.confidence)
@@ -199,7 +263,7 @@ class MemoryStore:
 
     def counts(self) -> dict[str, int]:
         return {table: self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                for table in ("memories", "projects", "artifacts", "relations")}
+                for table in ("memories", "memory_candidates", "projects", "artifacts", "relations")}
 
 
-__all__ = ["Artifact", "Memory", "MemoryStore", "Project", "stable_id", "utc_now"]
+__all__ = ["Artifact", "Memory", "MemoryCandidateRecord", "MemoryStore", "Project", "stable_id", "utc_now"]
