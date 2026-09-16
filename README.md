@@ -4,25 +4,17 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-02 — Conversation Memory v1.3 — completion-gate preparation**
+**IMPL-03 — Project & File Intelligence v0.1**
 
-IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships, lexical retrieval, read-only project discovery, tests and CI.
+IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships and lexical retrieval. IMPL-02 established normalized conversations, provider-neutral imports, continuity, candidate review, project evidence, timelines and re-entry briefs.
 
-IMPL-02 now provides normalized conversation/message persistence, provider-neutral import boundaries, ChatGPT export ingestion, conversation/project/artifact continuity, conversation and project re-entry briefs, conservative memory-candidate extraction, explicit candidate review/promotion, project activity timelines, role/project-aware candidate evidence, historical project lifecycle events, richer provenance merging on re-import, normalized ChatGPT source timestamps, and evidence projection from accepted conversation candidates into project events.
+IMPL-03 now begins the filesystem intelligence layer. Memory OS can discover likely project roots, inspect project structure without executing code, register files as artifacts, connect artifacts to projects, and retain evidence such as dependency markers, likely entrypoints and lightweight import hints.
 
-The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance. User-authored personal decision/preference signals receive stronger evidence confidence than equivalent assistant-authored statements, and candidates can carry an associated project identifier when known.
+Discovery is deliberately **read-only**. It does not move, rename, delete or execute user files. Physical filesystem organization remains separate from the semantic project overlay.
 
-Accepted candidates can become **project evidence** without losing provenance. A reviewed candidate generates an idempotent project event containing the candidate ID, conversation ID, source message ID, confidence and evidence status. Rejected or unreviewed candidates are not projected into the project timeline. The `project-evidence` CLI command exposes this operation directly, with optional candidate filtering.
+Project inspection is intentionally evidence-based rather than pretending to understand an entire codebase. Current structural evidence includes file/code counts, dependency markers, README-derived summaries, likely entrypoints, bounded content hashes and lightweight Python/JavaScript/TypeScript import hints.
 
-Conversation re-import is **evidence-preserving**. A later import can add timestamps, source location, external IDs, or metadata that was missing from the first import without replacing already-known values with blanks. Message-level timestamps and metadata are merged in the same way.
-
-ChatGPT exports now have source epoch timestamps normalized to UTC ISO-8601, with message-level observed times and selected raw structural metadata retained for provenance.
-
-Project lifecycle changes are preserved as explicit append-only events rather than only overwriting the current project status. The timeline therefore has historical evidence while current state remains directly queryable.
-
-The project timeline is still **evidence-based**: it combines explicit project events, reviewed candidate evidence, recorded graph relationships, and known artifact modification timestamps. It does not yet claim to reconstruct the complete semantic history of a project.
-
-The system is provider-neutral. Model runtimes such as Ollama are adapters, not the memory core itself.
+Rescans are repeatable: projects are keyed by root location and artifacts by file location, so the same workspace can be scanned again without creating duplicate physical records.
 
 ## Design principles
 
@@ -40,28 +32,26 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 12. Preserve richer provenance discovered by later imports rather than discarding it.
 13. Normalize source timestamps without discarding original source values.
 14. Only project candidate-derived project milestones after explicit review acceptance.
-15. Preserve candidate provenance when projecting reviewed evidence into project history.
+15. Treat filesystem discovery as a semantic overlay, not a filesystem cleanup operation.
+16. Do not execute discovered code as part of project intelligence.
 
 ## Status
 
 - **IMPL-01 foundation:** implemented.
-- **IMPL-02 conversation normalization:** implemented through the current evidence-projection milestone.
+- **IMPL-02 conversation normalization:** implemented through evidence projection; completion gate remains pending reliable runtime verification and a real sanitized export.
 - **Conversation continuity:** implemented for conversation ↔ project ↔ artifact relationships and re-entry briefs.
-- **Candidate extraction:** implemented as conservative, provenance-preserving candidate generation.
-- **Candidate persistence/review boundary:** implemented; explicit acceptance is required for durable promotion.
+- **Candidate extraction/review:** implemented as conservative, provenance-preserving candidate generation.
 - **Project activity timeline:** implemented from explicit events, reviewed candidate evidence, recorded relationships and artifact modification evidence.
-- **Role/project-aware candidates:** implemented with role-sensitive confidence and optional project context.
-- **Historical project events:** implemented for project creation and status changes, plus explicit idempotent event insertion.
-- **Conversation provenance merge:** implemented for later-discovered conversation/message timestamps and metadata.
-- **ChatGPT timestamp normalization:** implemented for conversation/message source timestamps with UTC normalization and raw timestamp retention.
 - **Accepted candidate → project evidence:** implemented with provenance and idempotent projection, including CLI access.
-- **End-to-end continuity path:** represented in integration tests from ChatGPT import → candidate extraction → explicit review → project evidence → timeline → re-entry.
-- **Test hardening:** candidate source-message provenance and explicit project-event timeline coverage are asserted.
+- **IMPL-03 project discovery:** implemented as a read-only structural intelligence layer.
+- **IMPL-03 artifact registry linkage:** implemented with bounded SHA-256 hashes and project containment relationships.
+- **IMPL-03 structural evidence:** dependency markers, likely entrypoints and lightweight import hints implemented.
+- **IMPL-03 repeatable scans:** implemented by project root and artifact location uniqueness.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
 
-## Completion gate
+## IMPL-03 completion gate
 
-Before IMPL-02 is declared complete, the project must pass the test suite in a reliable local/CI environment and be exercised against a real sanitized conversation export. No provider schema should be added without verified source evidence.
+Before IMPL-03 is declared complete, discovery must be exercised against representative workspaces, Git evidence and artifact-change tracking must be added, and project-to-conversation continuity must be validated. Discovery must remain non-destructive.
 
 ## Roadmap
 
