@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-02 — Conversation Memory v1.2**
+**IMPL-02 — Conversation Memory v1.3 — completion-gate preparation**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships, lexical retrieval, read-only project discovery, tests and CI.
 
@@ -12,7 +12,7 @@ IMPL-02 now provides normalized conversation/message persistence, provider-neutr
 
 The candidate layer is deliberately **review-first**: extracted decisions, preferences, tasks and unresolved items are not treated as durable memory automatically. Candidates retain source conversation/message provenance. User-authored personal decision/preference signals receive stronger evidence confidence than equivalent assistant-authored statements, and candidates can carry an associated project identifier when known.
 
-Accepted candidates can become **project evidence** without losing provenance. A reviewed candidate generates an idempotent project event containing the candidate ID, conversation ID, source message ID, confidence and evidence status. Rejected or unreviewed candidates are not projected into the project timeline. The `project-evidence` CLI command now exposes this operation directly.
+Accepted candidates can become **project evidence** without losing provenance. A reviewed candidate generates an idempotent project event containing the candidate ID, conversation ID, source message ID, confidence and evidence status. Rejected or unreviewed candidates are not projected into the project timeline. The `project-evidence` CLI command exposes this operation directly, with optional candidate filtering.
 
 Conversation re-import is **evidence-preserving**. A later import can add timestamps, source location, external IDs, or metadata that was missing from the first import without replacing already-known values with blanks. Message-level timestamps and metadata are merged in the same way.
 
@@ -55,8 +55,13 @@ The system is provider-neutral. Model runtimes such as Ollama are adapters, not 
 - **Conversation provenance merge:** implemented for later-discovered conversation/message timestamps and metadata.
 - **ChatGPT timestamp normalization:** implemented for conversation/message source timestamps with UTC normalization and raw timestamp retention.
 - **Accepted candidate → project evidence:** implemented with provenance and idempotent projection, including CLI access.
-- **Test hardening:** candidate source-message provenance and explicit project-event timeline coverage are now asserted.
+- **End-to-end continuity path:** represented in integration tests from ChatGPT import → candidate extraction → explicit review → project evidence → timeline → re-entry.
+- **Test hardening:** candidate source-message provenance and explicit project-event timeline coverage are asserted.
 - **Automated test execution:** test suites exist, but the current execution environment has not provided a successful end-to-end test run, so CI/runtime verification is not claimed here.
+
+## Completion gate
+
+Before IMPL-02 is declared complete, the project must pass the test suite in a reliable local/CI environment and be exercised against a real sanitized conversation export. No provider schema should be added without verified source evidence.
 
 ## Roadmap
 
