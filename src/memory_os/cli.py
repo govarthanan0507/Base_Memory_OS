@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .continuity import render_reentry_brief
 from .conversation import get_messages
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
@@ -40,6 +41,15 @@ def build_parser() -> argparse.ArgumentParser:
     show = sub.add_parser("show-conversation", help="Show normalized messages")
     show.add_argument("conversation_id")
 
+    relate = sub.add_parser("relate", help="Create a relationship between two known IDs")
+    relate.add_argument("source_id")
+    relate.add_argument("relation")
+    relate.add_argument("target_id")
+
+    reentry = sub.add_parser("reentry", help="Render an evidence-based conversation re-entry brief")
+    reentry.add_argument("conversation_id")
+    reentry.add_argument("--limit", type=int, default=50)
+
     return parser
 
 
@@ -71,6 +81,11 @@ def main() -> int:
         elif args.command == "show-conversation":
             for row in get_messages(store, args.conversation_id):
                 print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
+        elif args.command == "relate":
+            store.relate(args.source_id, args.relation, args.target_id)
+            print(f"Related {args.source_id} --{args.relation}--> {args.target_id}")
+        elif args.command == "reentry":
+            print(render_reentry_brief(store, args.conversation_id, args.limit))
     finally:
         store.close()
     return 0
