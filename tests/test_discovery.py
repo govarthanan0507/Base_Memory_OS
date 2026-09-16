@@ -48,6 +48,28 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(project.metadata["git"]["git_branch"], "main")
             self.assertEqual(project.metadata["git"]["git_head"], "0123456789abcdef")
 
+    def test_artifact_change_is_historical_and_repeatable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "workspace" / "demo"
+            root.mkdir(parents=True)
+            source = root / "app.py"
+            source.write_text("print('one')\n", encoding="utf-8")
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                scan_workspace(root.parent, store)
+                artifact_id = store.conn.execute("SELECT artifact_id FROM artifacts WHERE location=?", (str(source.resolve()),)).fetchone()[0]
+                self.assertEqual(len(store.list_artifact_events(artifact_id)), 1)
+                source.write_text("print('two')\n", encoding="utf-8")
+                scan_workspace(root.parent, store)
+                events = store.list_artifact_events(artifact_id)
+                self.assertEqual(len(events), 2)
+                self.assertEqual(events[0]["event_type"], "changed")
+                self.assertNotEqual(events[0]["old_hash"], events[0]["new_hash"])
+                scan_workspace(root.parent, store)
+                self.assertEqual(len(store.list_artifact_events(artifact_id)), 2)
+            finally:
+                store.close()
+
     def test_scan_is_repeatable_by_location(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "workspace" / "demo"
