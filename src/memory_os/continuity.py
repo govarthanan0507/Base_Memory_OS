@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
+import sqlite3
 from typing import Any
 
+from .conversation import ensure_schema, get_messages
 from .core import MemoryStore
-from .conversation import ensure_schema
 
 
 def related_records(store: MemoryStore, source_id: str, limit: int = 50) -> list[dict[str, Any]]:
@@ -22,6 +22,43 @@ def related_records(store: MemoryStore, source_id: str, limit: int = 50) -> list
     return [dict(row) for row in rows]
 
 
+def _entity(store: MemoryStore, entity_id: str) -> tuple[str, dict[str, Any]] | None:
+    row = store.conn.execute(
+        "SELECT project_id AS id, name, root, status, summary FROM projects WHERE project_id = ?",
+        (entity_id,),
+    ).fetchone()
+    if row is not None:
+        return "project", dict(row)
+    row = store.conn.execute(
+        "SELECT artifact_id AS id, name, artifact_type, location FROM artifacts WHERE artifact_id = ?",
+        (entity_id,),
+    ).fetchone()
+    if row is not None:
+        return "artifact", dict(row)
+    row = store.conn.execute(
+        "SELECT conversation_id AS id, title, source, started_at, ended_at FROM conversations WHERE conversation_id = ?",
+        (entity_id,),
+    ).fetchone()
+    if row is not None:
+        return "conversation", dict(row)
+    return None
+
+
+def _linked_entities(store: MemoryStore, entity_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    output = []
+    for link in related_records(store, entity_id, limit):
+        other_id = link["target_id"] if link["source_id"] == entity_id else link["source_id"]
+        found = _entity(store, other_id)
+        if found is None:
+            continue
+        kind, item = found
+        item["kind"] = kind
+        item["relation"] = link["relation"]
+        item["relation_id"] = link["relation_id"]
+        output.append(item)
+    return output
+
+
 def conversation_context(store: MemoryStore, conversation_id: str, limit: int = 50) -> dict[str, Any]:
     """Return a compact context packet for a conversation and its known graph links."""
     ensure_schema(store)
@@ -35,32 +72,55 @@ def conversation_context(store: MemoryStore, conversation_id: str, limit: int = 
         "SELECT * FROM messages WHERE conversation_id = ? ORDER BY sequence LIMIT ?",
         (conversation_id, limit)
     )]
-    links = related_records(store, conversation_id, limit)
+    linked = _linked_entities(store, conversation_id, limit)
 
-    linked = []
-    for link in links:
-        target = link["target_id"] if link["source_id"] == conversation_id else link["source_id"]
-        row = store.conn.execute(
-            "SELECT project_id AS id, name, root, status, summary FROM projects WHERE project_id = ?",
-            (target,),
-        ).fetchone()
-        kind = "project"
-        if row is None:
-            row = store.conn.execute(
-                "SELECT artifact_id AS id, name, artifact_type, location FROM artifacts WHERE artifact_id = ?",
-                (target,),
-            ).fetchone()
-            kind = "artifact"
-        if row is not None:
-            item = dict(row)
-            item["kind"] = kind
-            item["relation"] = link["relation"]
-            linked.append(item)
+    # A conversation may point to a project whose artifacts are not directly linked
+    # to the conversation. Include one graph hop through each linked project.
+    seen = {item["id"] for item in linked}
+    expanded = list(linked)
+    for item in linked:
+        if item["kind"] != "project":
+            continue
+        for child in _linked_entities(store, item["id"], limit):
+            if child["id"] not in seen:
+                seen.add(child["id"])
+                child["via_project"] = item["id"]
+                expanded.append(child)
 
     return {
         "conversation": dict(conversation),
         "messages": messages,
-        "related": linked,
+        "related": expanded,
+    }
+
+
+def project_context(store: MemoryStore, project_id: str, limit: int = 50) -> dict[str, Any]:
+    """Return project state plus linked conversations, artifacts, and recent memories."""
+    ensure_schema(store)
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+    project = store.conn.execute(
+        "SELECT * FROM projects WHERE project_id = ?", (project_id,)
+    ).fetchone()
+    if project is None:
+        raise KeyError(f"project not found: {project_id}")
+
+    linked = _linked_entities(store, project_id, limit)
+    conversations = [item for item in linked if item["kind"] == "conversation"]
+    artifacts = [item for item in linked if item["kind"] == "artifact"]
+
+    memories = [dict(row) for row in store.conn.execute(
+        """SELECT m.* FROM memories m
+           JOIN relations r ON r.source_id = m.memory_id OR r.target_id = m.memory_id
+           WHERE r.source_id = ? OR r.target_id = ?
+           ORDER BY m.observed_at DESC LIMIT ?""",
+        (project_id, project_id, limit),
+    )]
+    return {
+        "project": dict(project),
+        "conversations": conversations,
+        "artifacts": artifacts,
+        "memories": memories,
     }
 
 
@@ -85,4 +145,31 @@ def render_reentry_brief(store: MemoryStore, conversation_id: str, limit: int = 
     return "\n".join(lines)
 
 
-__all__ = ["conversation_context", "related_records", "render_reentry_brief"]
+def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int = 50) -> str:
+    packet = project_context(store, project_id, limit)
+    project = packet["project"]
+    lines = [f"# Project Re-entry: {project['name']}", "", f"Status: {project['status']}", f"Root: {project['root']}"]
+    if project.get("summary"):
+        lines += ["", "## Summary", project["summary"]]
+    lines += ["", "## Artifacts"]
+    if packet["artifacts"]:
+        for item in packet["artifacts"]:
+            lines.append(f"- {item['name']} ({item.get('artifact_type', 'unknown')}) — {item.get('location', '')}")
+    else:
+        lines.append("- No linked artifacts.")
+    lines += ["", "## Conversations"]
+    if packet["conversations"]:
+        for item in packet["conversations"]:
+            lines.append(f"- {item['title']} [{item['source']}] ({item.get('relation', 'related')})")
+    else:
+        lines.append("- No linked conversations.")
+    lines += ["", "## Linked memories"]
+    if packet["memories"]:
+        for memory in packet["memories"]:
+            lines.append(f"- [{memory['memory_type']}] {memory['content']}")
+    else:
+        lines.append("- No linked memories.")
+    return "\n".join(lines)
+
+
+__all__ = ["conversation_context", "project_context", "related_records", "render_project_reentry_brief", "render_reentry_brief"]
