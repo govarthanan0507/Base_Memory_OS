@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from .conversation import Conversation, Message
@@ -20,17 +21,23 @@ def _text_from_content(content: Any) -> str:
     return ""
 
 
-def chatgpt_conversation(data: dict[str, Any]) -> Conversation:
-    """Normalize one common ChatGPT export conversation object.
+def _iso_from_epoch(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(value), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
 
-    The adapter intentionally keeps unknown fields in metadata and does not
-    depend on ChatGPT-specific IDs outside the source record.
-    """
+
+def chatgpt_conversation(data: dict[str, Any]) -> Conversation:
+    """Normalize one common ChatGPT export conversation object."""
     mapping = data.get("mapping")
     if not isinstance(mapping, dict):
         raise ValueError("ChatGPT conversation requires a mapping object")
 
     messages: list[Message] = []
+    observed_times: list[str] = []
     ordered = sorted(
         mapping.values(),
         key=lambda node: ((node.get("message") or {}).get("create_time") or 0, str(node.get("id", ""))),
@@ -48,13 +55,20 @@ def chatgpt_conversation(data: dict[str, Any]) -> Conversation:
         content = _text_from_content(raw.get("content"))
         if not content:
             continue
+        observed_at = _iso_from_epoch(raw.get("create_time"))
+        if observed_at:
+            observed_times.append(observed_at)
         messages.append(Message(
             role=role,
             content=content,
             sequence=len(messages) + 1,
-            observed_at=str(raw.get("create_time")) if raw.get("create_time") is not None else None,
+            observed_at=observed_at,
             external_id=str(node.get("id")) if node.get("id") else None,
-            metadata={"recipient": raw.get("recipient")} if raw.get("recipient") else {},
+            metadata={
+                "recipient": raw.get("recipient"),
+                "parent_id": node.get("parent"),
+                "raw_create_time": raw.get("create_time"),
+            },
         ))
 
     if not messages:
@@ -63,9 +77,14 @@ def chatgpt_conversation(data: dict[str, Any]) -> Conversation:
         source="chatgpt",
         title=str(data.get("title") or "Untitled conversation"),
         external_id=str(data.get("conversation_id") or data.get("id")) if (data.get("conversation_id") or data.get("id")) else None,
-        started_at=None,
-        ended_at=None,
-        metadata={"adapter": "chatgpt", "default_model_slug": data.get("default_model_slug")},
+        started_at=min(observed_times) if observed_times else _iso_from_epoch(data.get("create_time")),
+        ended_at=max(observed_times) if observed_times else _iso_from_epoch(data.get("update_time")),
+        metadata={
+            "adapter": "chatgpt",
+            "default_model_slug": data.get("default_model_slug"),
+            "source_create_time": data.get("create_time"),
+            "source_update_time": data.get("update_time"),
+        },
         messages=tuple(messages),
     )
 
