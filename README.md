@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.8 — CI-driven integration repair + monorepo boundaries**
+**IMPL-03 — Project & File Intelligence v0.8.1 — canonical identity test repair**
 
 IMPL-03 now has read-only filesystem discovery, project/artifact registration, structural and state evidence, Git identity, historical artifact changes, project timelines, and explicit project↔conversation continuity. This cycle uses real GitHub Actions execution as the runtime diagnostic loop.
 
@@ -12,11 +12,13 @@ The repair pass restored message identity compatibility, candidate extraction fr
 
 Project discovery now also preserves strong nested project boundaries in monorepo-like layouts and prevents a parent project's artifact scan from swallowing selected child-project artifacts.
 
+The latest CI failure was isolated to a stale assertion in `tests/test_evidence.py`: conversation external IDs are provider-facing identifiers, while graph relations correctly target the system's canonical conversation ID. The test now resolves and asserts that canonical identity rather than conflating the two namespaces.
+
 Discovery remains **read-only**: no source files are moved, renamed, deleted or executed.
 
 ## Verification status
 
-GitHub Actions is exercising the suite across Python 3.11–3.14. The initial diagnostic run exposed 3 failures and 11 errors; repair passes progressively eliminated those integration defects. The current branch includes the latest continuity/idempotence fixes plus deterministic monorepo discovery coverage. The newest full-matrix result must be observed before the completion gate can be called green.
+GitHub Actions is exercising the suite across Python 3.11–3.14. The latest observed run reached 39 tests and had one failure; all other tests in the 3.11 job passed before the stale identity assertion failed. The assertion has now been repaired, and a fresh full-matrix run is required before the completion gate can be called green.
 
 ## Status
 
@@ -29,6 +31,7 @@ GitHub Actions is exercising the suite across Python 3.11–3.14. The initial di
 - **IMPL-03 state evidence:** tests, TODO/FIXME and recent activity signals implemented.
 - **IMPL-03 root hardening:** strong-marker precedence, code-only discovery, and nested strong-project boundaries implemented.
 - **IMPL-03 artifact history:** append-only discovery/change events implemented.
+- **Canonical identity boundary:** provider-facing conversation external IDs are resolved to stable internal conversation IDs before graph linking.
 - **CI repair pass:** active; real runtime failures are being used to harden domain boundaries and idempotence.
 
 ## IMPL-03 completion gate
