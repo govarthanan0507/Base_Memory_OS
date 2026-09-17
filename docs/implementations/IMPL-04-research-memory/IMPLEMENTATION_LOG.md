@@ -149,17 +149,23 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 **Exact implementation paths:**
 - `src/memory_os/research_registry.py`
 - `tests/test_research_registry.py`
+- `src/memory_os/research_store.py`
+- `tests/test_research_store.py`
 - `docs/implementations/IMPL-04-research-memory/BRD.md`
 - `docs/implementations/IMPL-04-research-memory/FRD.md`
 - `docs/implementations/IMPL-04-research-memory/PRD.md`
 - `docs/implementations/IMPL-04-research-memory/TRD.md`
 - `README.md`
 
-**Implementation:** added `research_entities` with deterministic identity from `kind + normalized value`, and `research_entity_evidence` for distinct source/snapshot/evidence occurrences. Duplicate entity identity converges across sources while duplicate evidence insertion is idempotent. Added explicit `candidate → accepted/rejected` review state with review timestamp. Review intentionally does not create a general durable-memory record.
+**Implementation:** the research registry uses deterministic identity from `kind + normalized value`, while evidence records retain distinct source/snapshot/evidence occurrences. The lower-level evidence store was then hardened so identical evidence from two different source URLs cannot collapse into one provenance row. Existing databases are upgraded in place when the legacy uniqueness key is detected.
 
-**Tests:** same repository from two sources produces one entity and two evidence rows; different candidate kinds remain distinct; review changes status and does not insert into `memories`.
+**Failure:** CI run #241 (`35186854404`) failed in Python 3.12 with evidence count `1` instead of `2` for identical repository evidence from two distinct source URLs.
 
-**CI verification:** corrected-head run #224 (`35184592014`) passed all four Python versions before this registry documentation closure. The registry changes and documentation are on newer commits and therefore require a fresh CI run before the final IMPL-04 gate is considered green.
+**Root cause:** `research_candidate_evidence` used `UNIQUE(candidate_id, content_hash, evidence)`, which treated identical evidence text from different URLs as the same record.
+
+**Fix:** commit `5329647d86d947dbd21e2956634c7d492fcee2be` changed the uniqueness key and deterministic evidence ID to include `source_url`, and added an in-place migration for the legacy schema.
+
+**Verification:** CI run #242 (`35187252449`) passed the full Python 3.11–3.14 matrix. All four jobs completed successfully.
 
 ---
 
@@ -176,7 +182,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 | v0.7 | None observed | — | — | Candidate provenance/dedup tests |
 | v0.8 | None observed | — | — | Full provenance-chain assertions |
 | v0.9 | Test used unsupported ingestion keyword and Unix-specific path | Test/API mismatch and portability issue | Explicit `ResearchSource` + `TemporaryDirectory()` | Corrected-head CI #224 |
-| v1.0 | No implementation failure observed in registry cycle | — | Fresh CI required after final registry/docs commits | Registry dedup/review tests |
+| v1.0 | Cross-source identical evidence collapsed into one row | Evidence uniqueness omitted source URL | Source-aware uniqueness + legacy migration | CI #242 Python 3.11–3.14 |
 
 ## 14. Current evidence boundary
 
@@ -206,11 +212,13 @@ DURABLE MEMORY / VERIFIED CLAIM ── not automatic
 
 ## 15. IMPL-04 gate state
 
-**Implementation:** complete for the defined v0.9 scope.
+**Implementation:** complete for the defined IMPL-04 scope.
 
 **Documentation:** BRD/FRD/PRD/TRD, README and this audit log updated.
 
-**Verification:** registry behavior is covered by automated tests; the last fully verified head is run #224 before the final registry/doc commits. A fresh CI run on the current head is required before marking the milestone release gate green.
+**Verification:** CI run #242 (`35187252449`) passed Python 3.11, 3.12, 3.13 and 3.14 after the source-aware evidence fix.
+
+**Gate:** **GREEN — IMPL-04 complete.**
 
 ## 16. Next milestone
 
