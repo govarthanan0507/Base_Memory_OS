@@ -8,11 +8,16 @@ from .core import Artifact, MemoryStore, stable_id, utc_now
 
 @dataclass(frozen=True)
 class ResearchSource:
-    """A normalized external research source preserved as an artifact."""
+    """An external research source preserved as an artifact.
+
+    ``source_type`` is optional at the identity boundary: when omitted, the
+    URL classifier supplies a conservative category. Explicit values remain
+    supported for sources whose type cannot be inferred reliably from a URL.
+    """
 
     url: str
     title: str = ""
-    source_type: str = "website"
+    source_type: str = ""
     captured_at: str = field(default_factory=utc_now)
     metadata: dict[str, object] = field(default_factory=dict)
 
