@@ -1,10 +1,10 @@
 # IMPL-04 PRD — Research Memory
 
-**Version:** 0.5
+**Version:** 0.6
 
 ## Product intent
 
-Make external research traceable inside Personal Work Memory by turning sources into durable, deduplicated artifacts, preserving bounded evidence, and exposing reproducible structural observations before deeper semantic understanding.
+Make external research traceable inside Personal Work Memory by turning sources into durable, deduplicated artifacts, preserving bounded evidence, exposing reproducible structural observations, and producing conservative reviewable candidates before deeper semantic understanding.
 
 ## First user experience
 
@@ -15,9 +15,11 @@ Make external research traceable inside Personal Work Memory by turning sources 
 5. Optionally request bounded text capture.
 6. Store the snapshot separately and attach its hash, capture time and location to the source artifact.
 7. Inspect the captured evidence for reproducible title, heading and link observations.
-8. Treat all observations as evidence, not verified conclusions.
+8. Extract candidate repositories, tools, ideas and topics from the preserved evidence.
+9. Review candidates before they become durable memory or graph claims.
+10. Follow every candidate back to the exact source snapshot that produced it.
 
-The programmatic entry point for ingestion is `ingest_research_source()`. The CLI exposes the registration/capture boundary through `add-research-source` and `capture-research-source`. Structural inspection is currently a library-level operation over `SourceSnapshot`.
+The programmatic entry point for ingestion is `ingest_research_source()`. Structural inspection is `extract_observations()`, and the new semantic-candidate boundary is `extract_semantic_candidates()`.
 
 ## Priorities
 
@@ -25,16 +27,18 @@ The programmatic entry point for ingestion is `ingest_research_source()`. The CL
 
 **P1:** bounded source-content snapshots, content hashing, capture metadata, provider-specific URL adapters and explicit ingestion composition.
 
-**P2:** deterministic structural evidence inspection, followed by semantic research summaries, citation graphs, idea/project linkage and cross-source synthesis.
+**P2:** deterministic structural evidence inspection and provenance-bound candidate extraction.
+
+**P3:** model-assisted semantic summaries, citation graphs, idea/project linkage and cross-source synthesis after the candidate/review boundary is stable.
 
 ## Product behavior
 
-The system must make the provenance chain visible enough to answer: "What source did we record?" and, after capture, "What exact content snapshot did we store, when, and where?" It should also answer: "What reproducible structural signals were present in that snapshot?" without silently converting those signals into conclusions.
+The system must make the provenance chain visible enough to answer: "What source did we record?" and, after capture, "What exact content snapshot did we store, when, and where?" It should also answer: "What reproducible structural signals and candidate references were present in that snapshot?" without silently converting candidates into conclusions.
 
-Registration and URL metadata are local observations; network capture is opt-in; snapshot persistence follows successful capture; structural inspection operates only on preserved evidence.
+Registration and URL metadata are local observations; network capture is opt-in; snapshot persistence follows successful capture; structural inspection and candidate extraction operate only on preserved evidence.
 
-It must not imply that a fetched source is true or authoritative merely because HTTP retrieval succeeded, nor that a page title or link is a semantic endorsement of the linked resource.
+A candidate is an intermediate research record, not a verified fact. Candidate generation must be conservative, deterministic and traceable. Repeated repository references are deduplicated within an extraction result. No candidate is admitted to durable memory automatically.
 
 ## Constraints
 
-Local-first, vendor-independent, source-preserving and evidence-oriented. Network capture is explicit rather than implicit. Capture is bounded and failures are surfaced. Structural extraction is deterministic and network-free. No credentials, access-control bypass or downloaded-code execution are part of this slice.
+Local-first, vendor-independent, source-preserving and evidence-oriented. Network capture is explicit rather than implicit. Capture is bounded and failures are surfaced. Structural and candidate extraction are deterministic and network-free. No credentials, access-control bypass or downloaded-code execution are part of this slice.
