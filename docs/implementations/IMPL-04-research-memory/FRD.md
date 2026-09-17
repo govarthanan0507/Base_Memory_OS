@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.6
+**Version:** 0.7
 
 ## Functional requirements
 
@@ -34,6 +34,8 @@
 - FR-28 Semantic candidates shall be marked as reviewable candidates and shall not automatically become durable memories or verified claims.
 - FR-29 Repeated identical repository references shall be deduplicated within one extraction result without losing provenance.
 - FR-30 Semantic extraction shall perform no network I/O, LLM inference or downloaded-code execution.
+- FR-31 The complete provenance chain shall be testable from source registration through snapshot attachment, structural observations and semantic candidates.
+- FR-32 Provenance-chain tests shall use platform-independent temporary storage rather than hard-coded filesystem locations.
 
 ## Acceptance behavior
 
@@ -48,3 +50,5 @@ The ingestion operation provides the complete deterministic-to-optional boundary
 Structural extraction operates only on already-captured evidence. Repeated identical content produces identical observations, and every observation result can be traced back to the snapshot hash. Malformed links are ignored rather than converted into invented source identities.
 
 Semantic candidate extraction operates after structural evidence inspection. A repository candidate is grounded in an observed GitHub/GitLab URL; tool and idea candidates are produced only by explicit conservative textual patterns; title/headings become topic candidates rather than authoritative summaries. Candidates retain exact evidence provenance and a review status. They are not written to durable memory automatically.
+
+The provenance-chain regression must demonstrate that a candidate emitted at the end of the chain retains the same source URL, snapshot hash and capture timestamp that were attached to the persisted artifact.
