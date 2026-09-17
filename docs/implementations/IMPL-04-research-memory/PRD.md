@@ -1,6 +1,6 @@
 # IMPL-04 PRD — Research Memory
 
-**Version:** 0.6
+**Version:** 0.7
 
 ## Product intent
 
@@ -19,7 +19,7 @@ Make external research traceable inside Personal Work Memory by turning sources 
 9. Review candidates before they become durable memory or graph claims.
 10. Follow every candidate back to the exact source snapshot that produced it.
 
-The programmatic entry point for ingestion is `ingest_research_source()`. Structural inspection is `extract_observations()`, and the new semantic-candidate boundary is `extract_semantic_candidates()`.
+The programmatic entry point for ingestion is `ingest_research_source()`. Structural inspection is `extract_observations()`, and the semantic-candidate boundary is `extract_semantic_candidates()`.
 
 ## Priorities
 
@@ -27,7 +27,7 @@ The programmatic entry point for ingestion is `ingest_research_source()`. Struct
 
 **P1:** bounded source-content snapshots, content hashing, capture metadata, provider-specific URL adapters and explicit ingestion composition.
 
-**P2:** deterministic structural evidence inspection and provenance-bound candidate extraction.
+**P2:** deterministic structural evidence inspection, provenance-bound candidate extraction and end-to-end provenance-chain verification.
 
 **P3:** model-assisted semantic summaries, citation graphs, idea/project linkage and cross-source synthesis after the candidate/review boundary is stable.
 
@@ -39,6 +39,8 @@ Registration and URL metadata are local observations; network capture is opt-in;
 
 A candidate is an intermediate research record, not a verified fact. Candidate generation must be conservative, deterministic and traceable. Repeated repository references are deduplicated within an extraction result. No candidate is admitted to durable memory automatically.
 
+The provenance-chain test is itself product protection: it ensures a future refactor cannot accidentally detach a candidate from the evidence that produced it.
+
 ## Constraints
 
-Local-first, vendor-independent, source-preserving and evidence-oriented. Network capture is explicit rather than implicit. Capture is bounded and failures are surfaced. Structural and candidate extraction are deterministic and network-free. No credentials, access-control bypass or downloaded-code execution are part of this slice.
+Local-first, vendor-independent, source-preserving and evidence-oriented. Network capture is explicit rather than implicit. Capture is bounded and failures are surfaced. Structural and candidate extraction are deterministic and network-free. Tests must use platform-independent temporary storage. No credentials, access-control bypass or downloaded-code execution are part of this slice.
