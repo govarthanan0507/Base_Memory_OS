@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.8
+v0.9
 
 ## Status
 
-In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration, explicit project↔conversation continuity, CI-driven integration repair, and deterministic nested-project boundary handling are implemented.
+Completion validation — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration, explicit project↔conversation continuity, CI-driven integration repair, deterministic nested-project boundaries, and compact project evidence are implemented.
 
 ## Completed
 
@@ -39,12 +39,14 @@ In progress — safe filesystem discovery, artifact registration, structural/sta
 - Conversation re-entry avoids re-expanding the conversation itself through a project relation.
 - Candidate persistence now assigns a stable observed timestamp when the source message has none, preventing repeated candidate projection from producing different project-event identities.
 - Explicit evidence linking accepts either a canonical conversation ID or its provider external ID, while storing the canonical relationship target.
-- GitHub Actions now executes the test suite across Python 3.11–3.14 and has exposed several real integration defects that were repaired in sequence.
+- GitHub Actions executes the test suite across Python 3.11–3.14.
+- CI failures exposed and drove repairs to candidate-store compatibility, discovery artifact registration, continuity display names, evidence schema/identity handling, continuity self-expansion, and candidate-event idempotence.
 - Deterministic monorepo-like discovery coverage added to the test suite.
+- Compact `project-evidence-view` added to separate current snapshot, historical evidence, explicit continuity, and current artifacts.
 
 ## CI evidence
 
-The initial CI diagnostic run executed 38 tests and reported 3 failures plus 11 errors. Repair passes eliminated the candidate-store, candidate-extraction, discovery-artifact and continuity/evidence compatibility defects. The most recent observed failures were continuity self-expansion and candidate-event idempotence; both were patched. The current monorepo boundary change adds another validation case. A fresh full-matrix run is required before declaring the branch green.
+GitHub Actions run #142 completed successfully across Python 3.11, 3.12, 3.13 and 3.14. This cleared the CI portion of the IMPL-03 completion gate after the earlier diagnostic failures were repaired.
 
 ## Current limitation
 
@@ -56,15 +58,15 @@ The discovery layer does not execute discovered code and does not infer project 
 
 Structural state evidence is deliberately not used to claim production readiness or code quality.
 
-Representative real-workspace validation is not yet complete.
+Representative mixed-workspace validation is now covered by deterministic synthetic tests; broad real-user filesystem validation remains future work.
 
 ## Next
 
-1. Verify the current monorepo boundary change with a fresh full CI matrix.
-2. Add/validate representative mixed-workspace fixtures covering unrelated scripts and nested project roots.
-3. Add a compact project-evidence/re-entry view that distinguishes current artifact state from historical artifact changes.
-4. Re-run the IMPL-03 completion gate only after CI is green and representative discovery fixtures pass.
+1. Run the new project-evidence view through the CI matrix.
+2. Confirm the IMPL-03 completion gate remains green with the added CLI/view test.
+3. Update the IMPL-03 BRD/FRD/PRD/TRD version notes to reflect v0.9 behavior.
+4. Close IMPL-03 and begin IMPL-04 Research Memory only after the documentation gate is complete.
 
 ## Safety
 
-Discovery is additive to the local Memory OS database. It never moves, deletes, renames or executes user source files. Original filesystem locations are retained as artifact provenance. Git metadata is read directly from repository metadata files rather than by running project code. Conversation links are explicit evidence relationships rather than silent inference.
+Discovery is additive to the local Memory OS database. It never moves, deletes, renames or executes user source files. Original filesystem locations are retained as artifact provenance. Git metadata is read directly from repository metadata files rather than by running project code. Conversation links are explicit evidence relationships rather than silent inference. The compact evidence view labels structural signals as evidence rather than claims about intent or quality.
