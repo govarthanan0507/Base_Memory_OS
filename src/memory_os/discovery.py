@@ -107,11 +107,12 @@ def inspect_project(root:Path)->Project:
     return Project(summary or root.name.replace("_"," ").replace("-"," ").strip().title(),str(root),"PARTIALLY BUILT" if code else "DISCOVERED",min(.95,confidence),summary=summary,metadata=metadata)
 
 def scan_workspace(root:str|Path,store:MemoryStore)->list[Project]:
-    projects=[]
-    for pr in likely_project_roots(Path(root)):
+    root_path=Path(root).resolve(); roots=likely_project_roots(root_path); root_set=set(roots); projects=[]
+    for pr in roots:
         project=inspect_project(pr);pid=store.add_project(project);projects.append(project)
         for current,dirs,names in os.walk(pr):
-            dirs[:]=[d for d in dirs if d not in IGNORED_DIRS]
+            current_path=Path(current).resolve()
+            dirs[:]=[d for d in dirs if d not in IGNORED_DIRS and (current_path/d).resolve() not in root_set]
             for name in names:
                 p=Path(current)/name
                 try:st=p.stat()
