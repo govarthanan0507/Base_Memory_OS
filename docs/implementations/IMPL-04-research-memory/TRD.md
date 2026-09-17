@@ -1,115 +1,72 @@
 # IMPL-04 TRD — Research Memory
 
-**Version:** 0.7
+**Version:** 0.9
 
 ## Paths
 
 - `src/memory_os/research.py` — URL normalization, classification and source registration
-- `src/memory_os/research_content.py` — bounded text capture, content hashing, snapshot persistence and artifact provenance attachment
-- `src/memory_os/research_metadata.py` — provider-neutral metadata hints derived from URL structure only
-- `src/memory_os/research_pipeline.py` — explicit source-ingestion orchestration
-- `src/memory_os/research_extract.py` — deterministic structural observations from captured evidence; malformed URL resolution is safely ignored
-- `src/memory_os/research_semantic.py` — conservative, provenance-bound semantic candidate extraction
-- `tests/test_research.py` — deterministic normalization, classification and deduplication tests
-- `tests/test_research_content.py` — snapshot hashing, persistence, idempotent attachment and byte-bound tests
-- `tests/test_research_metadata.py` — YouTube/repository/unknown-source metadata tests
-- `tests/test_research_pipeline.py` — offline integration tests for registration, optional capture and provenance
-- `tests/test_research_extract.py` — structural title/heading/link extraction and malformed-link regression tests
-- `tests/test_research_semantic.py` — candidate extraction, deduplication and provenance tests
-- `tests/test_research_semantic_pipeline.py` — source → snapshot → observations → candidates provenance-chain integration test
-- `src/memory_os/core.py` — artifact persistence and stable IDs
+- `src/memory_os/research_content.py` — bounded capture, hashing, snapshot persistence and provenance attachment
+- `src/memory_os/research_metadata.py` — URL-only provider/resource hints
+- `src/memory_os/research_pipeline.py` — source-ingestion orchestration
+- `src/memory_os/research_extract.py` — deterministic structural observations
+- `src/memory_os/research_semantic.py` — conservative provenance-bound candidate extraction
+- `src/memory_os/research_registry.py` — persistent cross-source candidate/entity deduplication, evidence multiplicity and review lifecycle
+- `tests/test_research_registry.py` — cross-source deduplication and review tests
+- `tests/test_research_provenance_chain.py` — end-to-end snapshot provenance regression
+- `tests/test_research_semantic_pipeline.py` — source → snapshot → observations → candidates integration
+- `tests/test_research*.py` — lower-level research behavior tests
+- `src/memory_os/core.py` — SQLite source of truth and stable IDs
 
-## Technical approach
+## Registry data model
 
-Use Python's standard-library `urllib.parse` for deterministic HTTP(S) URL normalization. Preserve query parameters because they may identify distinct resources; remove fragments because they describe page-local navigation rather than source identity. Normalize scheme/hostname case, remove default ports and trim trailing path slashes.
+`research_entities` is the durable identity boundary. Identity is `stable_id("research-entity", kind, normalized_value)`, with a uniqueness constraint on `(kind, normalized_value)`. Status is `candidate`, `accepted` or `rejected`; review timestamp is retained.
 
-Research sources reuse the existing artifact contract. The canonical URL is the artifact location and a deterministic hash-derived ID is generated from a `research` namespace plus the canonical URL. Existing artifact uniqueness by location provides a second persistence-level deduplication boundary.
+`research_entity_evidence` is deliberately separate. Each row retains entity ID, source URL, snapshot content hash, capture timestamp, exact evidence text, confidence and candidate metadata. `(entity_id, content_hash, evidence)` is unique, so the same occurrence can be safely re-persisted while independent sources remain visible.
 
-Classification is conservative and URL-derived: YouTube-like hosts map to `video`, common Git hosting hosts map to `repository`, common document extensions map to `document`, and other HTTP(S) sources map to `website`.
-
-Registration also persists safe URL-derived metadata returned by `extract_source_metadata()`.
-
-## Source capture
-
-`capture_text()` normalizes the URL, performs a standard-library HTTP(S) request, applies a caller-configurable timeout, reads at most `max_bytes + 1` bytes, rejects oversized responses, and decodes the response using the declared charset or UTF-8. It returns a `SourceSnapshot` containing canonical URL, raw text, capture timestamp, content type, status code and SHA-256 content hash.
-
-`save_snapshot()` stores the captured evidence as a JSON file named by content hash. The snapshot contains explicit provenance metadata and is separate from the canonical research artifact so a source's identity is not confused with one particular capture.
-
-`attach_snapshot_metadata()` appends an idempotent snapshot record to the existing artifact metadata.
-
-## URL metadata adapters
-
-`extract_source_metadata()` provides provider-neutral identity hints without network access. Current rules recognize YouTube watch/Shorts URLs, `youtu.be` video URLs, and GitHub/GitLab repository paths. Unknown sites return only safe canonical URL/host hints. The adapter deliberately does not scrape titles, authors, view counts, repository contents or other remote metadata.
-
-## Structural evidence extraction
-
-`extract_observations()` operates only on an existing `SourceSnapshot`. It uses bounded regular-expression parsing suitable for the current lightweight evidence layer to collect a title, headings, hyperlinks and absolute URLs. Relative hyperlinks are resolved against the captured source URL and normalized through the canonical URL boundary. `urljoin()` and URL normalization failures are ignored so malformed link input cannot crash the observation boundary. Duplicate observations are removed while preserving first-observed order.
-
-The result carries the snapshot content hash and capture timestamp. This is an evidence observation object, not a memory record and not a semantic claim. No network request, LLM inference, code execution or source verification occurs.
-
-## Semantic candidate extraction
-
-`extract_semantic_candidates()` consumes an existing `SourceSnapshot` plus its `ResearchObservations`. It emits a small, provider-neutral `ResearchCandidate` record for:
-
-- repository references found in observed GitHub/GitLab URLs;
-- tools explicitly introduced by conservative `tool/library/framework/platform/service/software` textual patterns;
-- ideas explicitly introduced by conservative `idea/project/approach/concept` textual patterns;
-- source topics represented by the captured title and headings.
-
-Each candidate stores kind, normalized value, exact evidence text, source URL, snapshot content hash, capture timestamp, confidence and `review_status=candidate`. Candidates are deduplicated by kind/value/evidence within one result.
-
-This is a deliberate semantic boundary, not a full semantic understanding engine. Heuristics are deterministic and intentionally conservative. Candidates are never automatically inserted into durable memory, treated as verified claims, or used to assert that a referenced repository/tool is actually suitable. A future model adapter may propose richer candidates, but it must preserve the same provenance and review boundary.
-
-## Provenance-chain integration
-
-`tests/test_research_semantic_pipeline.py` exercises the complete offline evidence chain on one synthetic mixed-source document:
+This creates the required shape:
 
 ```text
-captured source
-    ↓
-SourceSnapshot + SHA-256
-    ↓
-ResearchObservations
-    ↓
-ResearchCandidate records
-    ↓
-source URL + content hash + capture timestamp + review status
+SOURCE A ──┐
+           ├──> RESEARCH ENTITY (deduplicated identity)
+SOURCE B ──┘          │
+                      ├── evidence A / snapshot A
+                      └── evidence B / snapshot B
 ```
 
-The integration assertion verifies that every produced candidate remains traceable to the exact snapshot and that repository/tool/idea/topic outputs remain distinct intermediate records.
-
-## Ingestion pipeline
+## Processing pipeline
 
 ```text
 ResearchSource
-    ↓
+ ↓
 register_research_source()
-    ↓
+ ↓
 extract_source_metadata()
-    ↓
-[capture=True?]
-    ↓
-capture_text()
-    ↓
-save_snapshot()
-    ↓
-attach_snapshot_metadata()
-    ↓
-extract_observations(snapshot)
-    ↓
-extract_semantic_candidates(snapshot, observations)
-    ↓
-review / future memory admission
+ ↓
+optional capture_text()
+ ↓
+SourceSnapshot
+ ↓
+extract_observations()
+ ↓
+extract_semantic_candidates()
+ ↓
+register_research_candidates()
+ ↓
+review_research_entity()
 ```
 
-With `capture=False`, the operation performs no network I/O and returns the artifact ID, canonical URL and URL-derived metadata. With `capture=True`, a snapshot directory is mandatory and the capture/persistence/provenance stages execute only after successful bounded capture.
+Registration and candidate persistence use SQLite transactions. Duplicate identity and duplicate evidence are ignored rather than multiplied. Review only changes research-entity status and never writes to the general `memories` table.
 
-## Safety and evidence semantics
+## Evidence semantics
 
-Capture is an evidence acquisition step, not semantic understanding. Structural extraction and semantic candidate extraction are evidence inspection steps, not verification. The implementation does not execute downloaded content, silently summarize it, or declare it authoritative. Candidate records remain explicitly reviewable and provenance-bound.
+URL classification and metadata are observations. Snapshots are preserved evidence. Structural observations are deterministic interpretations of captured structure. Semantic candidates are heuristic, reviewable intermediates. Acceptance is a human review state, not source verification and not automatic durable-memory admission.
 
-No access-control bypass, credential handling or arbitrary code execution is implemented.
+No network access occurs during structural extraction, semantic extraction or candidate persistence. Downloaded content is never executed.
+
+## Verification
+
+The research registry tests verify cross-source identity convergence, distinct evidence retention, kind separation, idempotent persistence and explicit review without durable-memory creation. The full provenance-chain regression verifies source URL, snapshot hash and capture timestamp continuity. Corrected-head workflow run #224 (`35184592014`) passed Python 3.11, 3.12, 3.13 and 3.14.
 
 ## Future extension points
 
-Fetched provider metadata, repository/video/document extraction, claim-level citation relationships, content indexing and model-assisted semantic research synthesis can be added behind the same evidence and review boundary.
+Model-assisted extraction can feed the same `ResearchCandidate` contract. Later work can add explicit claim nodes, project/idea linkage and richer provider adapters without changing the evidence boundary.
