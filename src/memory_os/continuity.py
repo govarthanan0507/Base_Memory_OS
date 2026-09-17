@@ -13,7 +13,8 @@ def _entity(store: MemoryStore, entity_id: str):
         row=store.conn.execute(sql,(entity_id,)).fetchone()
         if row is not None:
             item=dict(row); item["entity_id"]=item["id"]
-            if kind=="memory": item["memory_id"]=item["id"]
+            if kind=="memory": item["memory_id"]=item["id"]; item["name"]=item["content"]
+            elif kind=="conversation": item["name"]=item["title"]
             return kind,item
     return None
 
