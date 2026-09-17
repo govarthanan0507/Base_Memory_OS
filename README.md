@@ -4,19 +4,17 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-04 — Research Memory v0.1 — canonical external-source identity**
+**IMPL-04 — Research Memory v0.2 — bounded source-content evidence**
 
 IMPL-03 established read-only filesystem/project intelligence, artifact registration and history, project timelines, explicit project↔conversation continuity, deterministic nested-project boundaries, and an evidence-labelled project view.
 
-IMPL-04 now adds a provider-neutral `ResearchSource` boundary that normalizes external HTTP(S) URLs, conservatively classifies common research sources (video, repository, document, website), preserves provenance/capture metadata, and registers sources as deduplicated artifacts using deterministic IDs.
+IMPL-04 now provides a provider-neutral research-source boundary that normalizes external HTTP(S) URLs, conservatively classifies common research sources (video, repository, document, website), preserves provenance, and registers sources as deduplicated artifacts using deterministic IDs.
 
-A refinement corrected an important identity-boundary bug: an omitted research source type now triggers URL classification instead of silently defaulting to `website`. The regression test covers a YouTube URL registered without an explicit type.
-
-Research registration is intentionally **not content verification**. This slice records source identity only; it does not fetch, parse, summarize, or claim that an external page was independently verified.
+The next layer now captures **bounded text evidence** explicitly. A source can be fetched with a timeout and byte limit, hashed with SHA-256, persisted as a separate JSON snapshot, and linked back to its source artifact with capture metadata. This is deliberately an evidence operation—not verification, summarization, or semantic understanding.
 
 ## Verification status
 
-The source-classification remediation and its regression test are committed. GitHub Actions verification for the new test-bearing commits is pending and will be recorded in the IMPL-04 engineering log; no unverified CI result is presented as green.
+The previous source-classification cycle is verified by GitHub Actions run #164 across Python 3.11–3.14. The new v0.2 source-capture test-bearing commits have been pushed and are awaiting their CI result; that result will be recorded in the IMPL-04 implementation log before the slice is called green.
 
 ## Status
 
@@ -31,11 +29,24 @@ The source-classification remediation and its regression test are committed. Git
 - **IMPL-03 artifact history:** append-only discovery/change events implemented.
 - **Canonical identity boundary:** provider-facing conversation external IDs are resolved to stable internal conversation IDs before graph linking.
 - **Compact project evidence:** snapshot/history/continuity/artifact view implemented with explicit evidence semantics.
-- **IMPL-04 research identity:** URL normalization, source classification, deterministic research artifact identity and duplicate-safe registration implemented.
+- **IMPL-04 research identity:** URL normalization, source classification, deterministic research artifact identity and duplicate-safe registration implemented and CI-verified.
+- **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented; CI verification pending.
 
-## IMPL-04 current gate
+## IMPL-04 evidence boundary
 
-The research identity slice is complete only after its regression test is green in the repository CI matrix. The next slice is source-content/metadata capture with explicit provenance; semantic synthesis remains deliberately out of scope until source capture is reliable.
+```text
+SOURCE REGISTERED
+      ↓
+SOURCE CAPTURED       ← optional, bounded
+      ↓
+SNAPSHOT HASHED
+      ↓
+SNAPSHOT PRESERVED
+      ↓
+SOURCE UNDERSTOOD     ← future layer
+```
+
+A successful HTTP response is not represented as proof that the source is correct or authoritative.
 
 ## Roadmap
 
