@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.8
+**Version:** 0.9
 
 ## Functional requirements
 
@@ -22,8 +22,8 @@
 - FR-16 Recognize YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository URL patterns.
 - FR-17 Unknown URL patterns shall return only generic canonical URL/host hints rather than invented provider metadata.
 - FR-18 Provide an explicit ingestion operation that composes source registration and URL metadata derivation.
-- FR-19 When capture is requested, the ingestion operation shall require a snapshot destination, perform bounded capture, persist the snapshot, and attach its provenance.
-- FR-20 The ingestion operation shall not perform network I/O when capture is disabled.
+- FR-19 When capture is requested, ingestion shall require a snapshot destination, perform bounded capture, persist the snapshot, and attach provenance.
+- FR-20 Ingestion shall not perform network I/O when capture is disabled.
 - FR-21 Extract deterministic structural observations from a captured snapshot without network access.
 - FR-22 For HTML-like evidence, extract a page title, headings and hyperlinks; resolve relative links against the captured source URL.
 - FR-23 Normalize and deduplicate observed links and headings while preserving first-observed order.
@@ -31,31 +31,27 @@
 - FR-25 Structural extraction shall not infer semantic claims, verify source truth, or execute downloaded content.
 - FR-26 Produce conservative, deterministic research candidates from preserved observations and snapshot text for repositories, tools, ideas and topics.
 - FR-27 Every semantic candidate shall retain source URL, exact snapshot content hash, capture timestamp and candidate evidence text.
-- FR-28 Semantic candidates shall be marked as reviewable candidates and shall not automatically become durable memories or verified claims.
+- FR-28 Semantic candidates shall be marked reviewable and shall not automatically become durable memories or verified claims.
 - FR-29 Repeated identical repository references shall be deduplicated within one extraction result without losing provenance.
 - FR-30 Semantic extraction shall perform no network I/O, LLM inference or downloaded-code execution.
 - FR-31 The complete provenance chain shall be testable from source registration through snapshot attachment, structural observations and semantic candidates.
-- FR-32 Provenance-chain tests shall use platform-independent temporary storage rather than hard-coded filesystem locations.
+- FR-32 Provenance-chain tests shall use platform-independent temporary storage.
 - FR-33 Persisted research candidate identity shall be deterministic from candidate kind and normalized value.
-- FR-34 Repeated candidates across different source snapshots shall converge on one candidate record.
-- FR-35 Each distinct candidate/source-snapshot/evidence occurrence shall remain separately queryable as candidate evidence.
+- FR-34 Repeated candidates across different source snapshots shall converge on one research entity.
+- FR-35 Each distinct candidate/source-snapshot/evidence occurrence shall remain separately queryable as evidence.
 - FR-36 Re-persisting the same candidate evidence shall be idempotent.
 - FR-37 Candidate review shall support candidate → accepted/rejected without automatically creating durable memory.
 
 ## Acceptance behavior
 
-Equivalent URL forms such as differing scheme/host case, default HTTPS port, trailing slash and fragment normalize to the same canonical source where appropriate. Registering the source repeatedly returns the same stable artifact identity and leaves one artifact record.
+Equivalent URL forms normalize to the same canonical source where appropriate. Registering a source repeatedly returns the same stable artifact identity and leaves one artifact record.
 
-A captured text response is stored as a separate evidence snapshot identified by its content hash. The artifact records where that snapshot lives and when it was captured. Capture is explicitly an evidence operation; it does not claim that the source is correct, authoritative or semantically understood.
+A captured response is stored as separate evidence identified by content hash. The artifact records its location and capture time. Capture does not claim correctness, authority or semantic understanding.
 
-Provider metadata extraction must remain network-free and deterministic for the same canonical URL. Its output describes URL structure only.
+Provider metadata extraction remains network-free and deterministic. Its output describes URL structure only.
 
-The ingestion operation provides the complete deterministic-to-optional boundary in one call: source registration → URL metadata → optional network capture → local snapshot → artifact provenance. Capture errors must surface to the caller rather than being represented as successful ingestion.
+Structural extraction operates only on preserved evidence. Repeated identical content produces identical observations; malformed links are ignored rather than converted into invented identities.
 
-Structural extraction operates only on already-captured evidence. Repeated identical content produces identical observations, and every observation result can be traced back to the snapshot hash. Malformed links are ignored rather than converted into invented source identities.
+Semantic extraction is conservative and provenance-bound. Repository candidates require observed GitHub/GitLab URLs; tool and idea candidates require explicit textual patterns; title/headings become topic candidates. No candidate is automatically treated as verified.
 
-Semantic candidate extraction operates after structural evidence inspection. A repository candidate is grounded in an observed GitHub/GitLab URL; tool and idea candidates are produced only by explicit conservative textual patterns; title/headings become topic candidates rather than authoritative summaries. Candidates retain exact evidence provenance and a review status. They are not written to durable memory automatically.
-
-Persistent candidate storage uses kind + normalized value as the identity boundary. Two different sources may therefore point to one candidate while their source URLs, snapshot hashes, timestamps and evidence text remain distinct evidence rows. Reviewing a candidate changes only its research-candidate status; it does not promote it to the general durable-memory table.
-
-The provenance-chain regression must demonstrate that a candidate emitted at the end of the chain retains the same source URL, snapshot hash and capture timestamp that were attached to the persisted artifact.
+Persistent storage uses kind + normalized value as the entity identity. Distinct source/snapshot/evidence occurrences remain separate. Re-persistence is idempotent. Review changes only the research entity status and does not create a general durable-memory record.
