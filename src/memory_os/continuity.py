@@ -175,10 +175,12 @@ def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int
         if latest else "- No linked conversation recorded."
     )
 
-    lines += ["", "## Last recorded activity"]
+    lines += ["", "## Recent recorded activity"]
     if packet["events"]:
-        event = packet["events"][0]
-        lines.append(f"- {event['timestamp']} — **{event['event_type']}** — {event['summary']}")
+        lines.extend(
+            f"- {event['timestamp']} — **{event['event_type']}** — {event['summary']}"
+            for event in packet["events"][:3]
+        )
     else:
         lines.append("- No project event recorded.")
 
