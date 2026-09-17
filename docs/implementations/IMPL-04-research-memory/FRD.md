@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.4
+**Version:** 0.5
 
 ## Functional requirements
 
@@ -24,6 +24,11 @@
 - FR-18 Provide an explicit ingestion operation that composes source registration and URL metadata derivation.
 - FR-19 When capture is requested, the ingestion operation shall require a snapshot destination, perform bounded capture, persist the snapshot, and attach its provenance.
 - FR-20 The ingestion operation shall not perform network I/O when capture is disabled.
+- FR-21 Extract deterministic structural observations from a captured snapshot without network access.
+- FR-22 For HTML-like evidence, extract a page title, headings and hyperlinks; resolve relative links against the captured source URL.
+- FR-23 Normalize and deduplicate observed links and headings while preserving first-observed order.
+- FR-24 Structural observations shall carry the captured snapshot content hash and capture timestamp as provenance.
+- FR-25 Structural extraction shall not infer semantic claims, verify source truth, or execute downloaded content.
 
 ## Acceptance behavior
 
@@ -34,3 +39,5 @@ A captured text response is stored as a separate evidence snapshot identified by
 Provider metadata extraction must remain network-free and deterministic for the same canonical URL. Its output describes URL structure only.
 
 The ingestion operation provides the complete deterministic-to-optional boundary in one call: source registration → URL metadata → optional network capture → local snapshot → artifact provenance. Capture errors must surface to the caller rather than being represented as successful ingestion.
+
+Structural extraction operates only on already-captured evidence. Repeated identical content produces identical observations, and every observation result can be traced back to the snapshot hash. Malformed links are ignored rather than converted into invented source identities.
