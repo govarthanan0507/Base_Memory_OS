@@ -5,7 +5,7 @@ from typing import Any
 
 
 def project_timeline(store: Any, project_id: str, limit: int = 100) -> list[dict[str, Any]]:
-    """Return a deterministic activity timeline for a project and its recorded evidence."""
+    """Return a deterministic activity timeline for a project and its evidence."""
     if limit < 1:
         return []
 
@@ -54,6 +54,20 @@ def project_timeline(store: Any, project_id: str, limit: int = 100) -> list[dict
                 "entity_id": artifact["artifact_id"],
                 "summary": f"Artifact modified: {artifact['name']}",
                 "metadata": json.loads(artifact["metadata_json"] or "{}"),
+            })
+
+        for change in store.list_artifact_events(artifact["artifact_id"], limit=limit):
+            events.append({
+                "event_type": "artifact_change",
+                "timestamp": change["timestamp"],
+                "entity_id": artifact["artifact_id"],
+                "summary": f"Artifact changed: {artifact['name']} ({change['event_type']})",
+                "metadata": {
+                    "old_hash": change["old_hash"],
+                    "new_hash": change["new_hash"],
+                    "old_modified_at": change["old_modified_at"],
+                    "new_modified_at": change["new_modified_at"],
+                },
             })
 
     events.sort(key=lambda item: (item["timestamp"] is not None, item["timestamp"] or ""), reverse=True)
