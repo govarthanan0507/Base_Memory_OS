@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 from .conversation import Message, message_id
-from .core import MemoryCandidateRecord, MemoryStore
+from .core import MemoryCandidateRecord, MemoryStore, utc_now
 
 @dataclass(frozen=True)
 class MemoryCandidate:
@@ -40,7 +40,8 @@ def extract_candidates(messages: Iterable[Message|dict[str,Any]], max_per_messag
 def persist_candidates(store:MemoryStore,conversation_id:str,messages:Iterable[Message|dict[str,Any]],max_per_message:int=2,project_id:str|None=None)->list[str]:
     ids=[]
     for c in extract_candidates(messages,max_per_message,project_id):
-        meta=c.metadata or {}; ids.append(store.add_candidate(MemoryCandidateRecord(c.content,c.memory_type,f"conversation:{conversation_id}",meta.get("source_message_id"),c.confidence,"candidate",meta.get("observed_at") or "",metadata={**meta,"conversation_id":conversation_id,"source_message_sequence":c.source_message_sequence})))
+        meta=c.metadata or {}; observed_at=meta.get("observed_at") or utc_now()
+        ids.append(store.add_candidate(MemoryCandidateRecord(c.content,c.memory_type,f"conversation:{conversation_id}",meta.get("source_message_id"),c.confidence,"candidate",observed_at,metadata={**meta,"observed_at":observed_at,"conversation_id":conversation_id,"source_message_sequence":c.source_message_sequence})))
     return ids
 
 __all__=["MemoryCandidate","extract_candidates","persist_candidates"]
