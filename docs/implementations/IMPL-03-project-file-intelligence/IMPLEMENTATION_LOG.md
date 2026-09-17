@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.5
+v0.7
 
 ## Status
 
-In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration and explicit project↔conversation continuity are implemented.
+In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration, explicit project↔conversation continuity, and a CI-driven integration repair pass are implemented.
 
 ## Completed
 
@@ -33,7 +33,15 @@ In progress — safe filesystem discovery, artifact registration, structural/sta
 - Accepted candidate projection now establishes project↔conversation continuity as part of the evidence trail.
 - Project reports and project re-entry can surface linked conversations.
 - Project timelines now include append-only artifact change events, including old/new hash and modification-time evidence.
-- Tests for read-only behavior, root selection, structure/state analysis, Git metadata, repeatable scans, artifact history, timeline artifact-change rendering and conversation continuity.
+- Continuity views now expose stable entity identifiers and display names consistently across projects, artifacts, conversations and memories.
+- Conversation re-entry avoids re-expanding the conversation itself through a project relation.
+- Candidate persistence now assigns a stable observed timestamp when the source message has none, preventing repeated candidate projection from producing different project-event identities.
+- Explicit evidence linking accepts either a canonical conversation ID or its provider external ID, while storing the canonical relationship target.
+- GitHub Actions now executes the test suite across Python 3.11–3.14 and has exposed several real integration defects that were repaired in sequence.
+
+## CI evidence
+
+The initial CI diagnostic run executed 38 tests and reported 3 failures plus 11 errors. Repair passes eliminated the candidate-store, candidate-extraction, discovery-artifact and most continuity/evidence compatibility defects. The latest observed run narrowed the remaining issues to continuity self-expansion and candidate-event idempotence; both were patched in the current branch. A fresh full-matrix run is required before declaring the branch green.
 
 ## Current limitation
 
@@ -45,16 +53,14 @@ The discovery layer does not execute discovered code and does not infer project 
 
 Structural state evidence is deliberately not used to claim production readiness or code quality.
 
-Automated test execution remains unverified in the available execution environment.
-
 Representative real-workspace validation is not yet complete.
 
 ## Next
 
-1. Validate discovery against representative real workspaces.
-2. Harden root heuristics against mixed workspace layouts and monorepos using deterministic fixtures.
+1. Verify the current repair pass with a fresh full CI matrix.
+2. Add deterministic representative mixed-workspace and monorepo-like fixtures.
 3. Add a compact project-evidence/re-entry view that distinguishes current artifact state from historical artifact changes.
-4. Obtain reliable runtime/CI verification and then evaluate the IMPL-03 completion gate.
+4. Re-run the IMPL-03 completion gate only after CI is green and representative discovery fixtures pass.
 
 ## Safety
 
