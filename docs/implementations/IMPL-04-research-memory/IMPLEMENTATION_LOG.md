@@ -106,12 +106,12 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Remediation sequence:**
 1. Test fixture corrected in `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
-2. Subsequent CI run #211 (`35184049758`) on the current head still failed because production extraction did not catch the `ValueError` raised by `urljoin()`.
+2. Subsequent CI run #211 (`35184049758`) on the then-current head still failed because production extraction did not catch the `ValueError` raised by `urljoin()`.
 3. Production code hardened in `ba8204e920136c0aee975dec8ab9d5b07e41ae0c` to ignore `TypeError`/`ValueError` from malformed link resolution/normalization.
 
-**Regression protection:** positive relative-link coverage remains; malformed absolute links now exercise the production exception boundary instead of relying only on the fixture to avoid the exception.
+**Regression protection:** positive relative-link coverage remains; malformed absolute links now exercise the production exception boundary.
 
-**Current verification:** the hardened production fix is pushed and a new CI run is expected. No green result is claimed yet.
+**Current verification:** the hardened production fix is pushed. A fresh CI result for the final current head is still pending.
 
 ---
 
@@ -136,7 +136,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Tests added:** repository/tool/idea/topic extraction with provenance; duplicate repository reference deduplication; unknown-source behavior that does not invent provider metadata.
 
-**Failure status:** no production failure observed during implementation. CI verification of the current head remains pending because the malformed-link fix was pushed after the first semantic-cycle head.
+**Failure status:** no production failure observed during candidate implementation. CI verification remains pending.
 
 **Known limitations:** textual patterns are intentionally narrow and heuristic. This is a staging boundary for future semantic/model-assisted extraction, not a complete natural-language understanding engine. The candidate layer currently does not persist candidates into the graph.
 
@@ -151,7 +151,31 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 ---
 
-## 10. Failure/remediation register
+## 10. Cycle v0.8 — Mixed-source provenance-chain integration
+
+**Date:** 2026-09-17
+
+**Objective:** prove the evidence-to-candidate chain as one offline integration behavior rather than only separate unit tests.
+
+**Exact implementation paths:**
+- `tests/test_research_semantic_pipeline.py`
+- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- `README.md`
+- this log
+
+**Implementation:** added an end-to-end synthetic research fixture that passes one captured source through `SourceSnapshot` → `extract_observations()` → `extract_semantic_candidates()`. The test asserts that repository, tool, idea and topic candidates remain distinct and that every candidate retains the exact source URL, SHA-256 snapshot hash, capture timestamp and review status.
+
+**Result:** the test closes the current deterministic evidence-chain gap without introducing network access, model inference or automatic durable-memory admission.
+
+**Failure status:** no new implementation failure observed in this cycle. CI for the latest head is pending.
+
+**Known limitations:** the integration currently proves provenance semantics but does not yet persist semantic candidates as graph entities/relations. That persistence/review boundary is the next research-memory engineering problem.
+
+**Evidence commit:** integration test `1320abd84c74f001532071aa56b9275442039d4f`.
+
+---
+
+## 11. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
@@ -162,8 +186,9 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 | v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
 | v0.6 | Structural extraction test initially used a valid relative URL as malformed; corrected fixture then exposed uncaught `urljoin()` ValueError | Test fixture ambiguity followed by production exception gap | Correct fixture + catch URL resolution/normalization errors | Positive relative-link test + malformed-link regression |
 | v0.7 | None observed during implementation | — | — | Provenance, deduplication and unknown-source tests |
+| v0.8 | None observed | — | — | Full source→snapshot→observation→candidate provenance assertions |
 
-## 11. Current evidence boundary
+## 12. Current evidence boundary
 
 ```text
 URL
@@ -185,6 +210,6 @@ SEMANTIC CANDIDATES ── reviewable, provenance-bound
 DURABLE MEMORY / VERIFIED CLAIM ── not automatic
 ```
 
-## 12. Next step
+## 13. Next step
 
-Verify the hardened head in CI. Then add a mixed-source integration path demonstrating source → snapshot → observations → candidates, with repository/tool/entity records remaining deduplicated and traceable to exact evidence before moving toward model-assisted semantic extraction.
+Verify the latest CI head. Then add candidate persistence/review and a cross-source deduplication boundary so repeated repositories/tools/entities from different research sources can converge on one durable artifact/entity while retaining every source and snapshot as provenance.
