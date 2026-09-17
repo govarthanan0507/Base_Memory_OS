@@ -68,9 +68,16 @@ def register_research_source(
     """Register a deduplicated research source as an artifact and return its stable ID."""
     canonical_url = normalize_url(source.url)
     source_type = source.source_type.strip().lower() or classify_url(canonical_url)
+
+    # Local import keeps the URL identity modules acyclic while making the
+    # provider/resource hints part of the persisted source provenance.
+    from .research_metadata import extract_source_metadata
+
+    derived_metadata = extract_source_metadata(canonical_url)
     artifact_id = stable_id("research", canonical_url)
     metadata = {
         **source.metadata,
+        **derived_metadata,
         "canonical_url": canonical_url,
         "source_type": source_type,
         "captured_at": source.captured_at,
