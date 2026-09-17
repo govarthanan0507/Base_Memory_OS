@@ -12,6 +12,8 @@ from .discovery import scan_workspace
 from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
 from .project_evidence import render_project_evidence
+from .research import ResearchSource
+from .research_pipeline import ingest_research_source
 from .timeline import render_project_timeline
 
 
@@ -77,6 +79,17 @@ def build_parser() -> argparse.ArgumentParser:
     project_evidence.add_argument("conversation_id")
     project_evidence.add_argument("project_id")
     project_evidence.add_argument("--candidate-id", action="append", dest="candidate_ids", default=None)
+    research_add = sub.add_parser("add-research-source", help="Register a research URL and derive safe URL metadata")
+    research_add.add_argument("url")
+    research_add.add_argument("--title", default="")
+    research_add.add_argument("--type", default="")
+    research_capture = sub.add_parser("capture-research-source", help="Register and capture bounded research evidence")
+    research_capture.add_argument("url")
+    research_capture.add_argument("--title", default="")
+    research_capture.add_argument("--type", default="")
+    research_capture.add_argument("--snapshot-dir", type=Path, required=True)
+    research_capture.add_argument("--timeout", type=float, default=10.0)
+    research_capture.add_argument("--max-bytes", type=int, default=2_000_000)
     return parser
 
 
@@ -106,6 +119,25 @@ def _project_report(store: MemoryStore, project_id: str, limit: int) -> str:
     lines += ["", "## Project events", ""]
     lines.extend(f"- {row['timestamp']} — **{row['event_type']}** — {row['summary']}" for row in events)
     return "\n".join(lines)
+
+
+def _research_command(store: MemoryStore, args: argparse.Namespace) -> None:
+    source = ResearchSource(url=args.url, title=args.title, source_type=args.type)
+    result = ingest_research_source(
+        store,
+        source,
+        capture=args.command == "capture-research-source",
+        snapshot_directory=getattr(args, "snapshot_dir", None),
+        timeout=getattr(args, "timeout", 10.0),
+        max_bytes=getattr(args, "max_bytes", 2_000_000),
+    )
+    print(json.dumps({
+        "artifact_id": result.artifact_id,
+        "canonical_url": result.canonical_url,
+        "source_metadata": result.source_metadata,
+        "snapshot_path": result.snapshot_path,
+        "content_hash": result.snapshot.content_hash if result.snapshot else None,
+    }, indent=2, sort_keys=True))
 
 
 def main() -> int:
@@ -168,6 +200,8 @@ def main() -> int:
             print(f"Projected {len(event_ids)} accepted candidate event(s)")
             for event_id in event_ids:
                 print(event_id)
+        elif args.command in {"add-research-source", "capture-research-source"}:
+            _research_command(store, args)
     finally:
         store.close()
     return 0
