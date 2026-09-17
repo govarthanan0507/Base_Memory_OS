@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from memory_os.core import MemoryStore
 from memory_os.research_content import SourceSnapshot, attach_snapshot_metadata, save_snapshot
@@ -25,23 +27,24 @@ class ResearchProvenanceChainTests(unittest.TestCase):
             "text/html",
             200,
         )
-        path = save_snapshot(snapshot, "/tmp/base-memory-os-test-snapshots")
-        attach_snapshot_metadata(store, result.artifact_id, snapshot, path)
+        with tempfile.TemporaryDirectory() as directory:
+            path = save_snapshot(snapshot, Path(directory))
+            attach_snapshot_metadata(store, result.artifact_id, snapshot, path)
 
-        observations = extract_observations(snapshot)
-        candidates = extract_semantic_candidates(snapshot, observations)
-        self.assertTrue(candidates)
-        for candidate in candidates:
-            self.assertEqual(candidate.source_url, snapshot.url)
-            self.assertEqual(candidate.content_hash, snapshot.content_hash)
-            self.assertEqual(candidate.captured_at, snapshot.captured_at)
-            self.assertEqual(candidate.metadata["review_status"], "candidate")
+            observations = extract_observations(snapshot)
+            candidates = extract_semantic_candidates(snapshot, observations)
+            self.assertTrue(candidates)
+            for candidate in candidates:
+                self.assertEqual(candidate.source_url, snapshot.url)
+                self.assertEqual(candidate.content_hash, snapshot.content_hash)
+                self.assertEqual(candidate.captured_at, snapshot.captured_at)
+                self.assertEqual(candidate.metadata["review_status"], "candidate")
 
-        row = store.conn.execute(
-            "SELECT metadata_json FROM artifacts WHERE artifact_id=?",
-            (result.artifact_id,),
-        ).fetchone()
-        self.assertIn(snapshot.content_hash, row["metadata_json"])
+            row = store.conn.execute(
+                "SELECT metadata_json FROM artifacts WHERE artifact_id=?",
+                (result.artifact_id,),
+            ).fetchone()
+            self.assertIn(snapshot.content_hash, row["metadata_json"])
 
 
 if __name__ == "__main__":
