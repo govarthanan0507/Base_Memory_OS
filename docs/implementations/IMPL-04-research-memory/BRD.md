@@ -1,6 +1,6 @@
 # IMPL-04 BRD — Research Memory
 
-**Version:** 0.4
+**Version:** 0.5
 
 ## Why this milestone exists
 
@@ -28,6 +28,7 @@ A vendor-independent research-source layer that canonicalizes external HTTP(S) U
 - deterministic extraction of titles, headings and links from captured HTML/text evidence;
 - conservative candidate extraction for referenced repositories, tools, ideas and topics;
 - evidence-bound candidate provenance and review status;
+- end-to-end provenance-chain regression coverage;
 - tests and audit logging.
 
 ## Non-goals
@@ -42,4 +43,4 @@ A vendor-independent research-source layer that canonicalizes external HTTP(S) U
 
 ## Success criteria
 
-A source can be registered once, optionally captured as bounded text evidence, traced to a content hash and local snapshot, structurally inspected, and converted into conservative reviewable candidates. Every candidate must retain the exact source URL, snapshot hash and capture timestamp needed to trace it back to evidence. Candidate extraction must not imply verification or durable memory admission.
+A source can be registered once, optionally captured as bounded text evidence, traced to a content hash and local snapshot, structurally inspected, and converted into conservative reviewable candidates. Every candidate must retain the exact source URL, snapshot hash and capture timestamp needed to trace it back to evidence. Candidate extraction must not imply verification or durable memory admission. A regression test must exercise the complete evidence chain without relying on a platform-specific filesystem path.
