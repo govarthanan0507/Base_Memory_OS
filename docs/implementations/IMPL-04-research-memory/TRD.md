@@ -1,15 +1,17 @@
 # IMPL-04 TRD — Research Memory
 
-**Version:** 0.3
+**Version:** 0.4
 
 ## Paths
 
 - `src/memory_os/research.py` — URL normalization, classification and source registration
 - `src/memory_os/research_content.py` — bounded text capture, content hashing, snapshot persistence and artifact provenance attachment
 - `src/memory_os/research_metadata.py` — provider-neutral metadata hints derived from URL structure only
+- `src/memory_os/research_pipeline.py` — explicit source-ingestion orchestration
 - `tests/test_research.py` — deterministic normalization, classification and deduplication tests
 - `tests/test_research_content.py` — snapshot hashing, persistence, idempotent attachment and byte-bound tests
 - `tests/test_research_metadata.py` — YouTube/repository/unknown-source metadata tests
+- `tests/test_research_pipeline.py` — offline integration tests for registration, optional capture and provenance
 - `src/memory_os/core.py` — artifact persistence and stable IDs
 
 ## Technical approach
@@ -19,6 +21,8 @@ Use Python's standard-library `urllib.parse` for deterministic HTTP(S) URL norma
 Research sources reuse the existing artifact contract. The canonical URL is the artifact location and a deterministic hash-derived ID is generated from a `research` namespace plus the canonical URL. Existing artifact uniqueness by location provides a second persistence-level deduplication boundary.
 
 Classification is conservative and URL-derived: YouTube-like hosts map to `video`, common Git hosting hosts map to `repository`, common document extensions map to `document`, and other HTTP(S) sources map to `website`.
+
+Registration now also persists the safe URL-derived metadata returned by `extract_source_metadata()`. A local import keeps the two modules acyclic.
 
 ## Source capture
 
@@ -31,6 +35,32 @@ Classification is conservative and URL-derived: YouTube-like hosts map to `video
 ## URL metadata adapters
 
 `extract_source_metadata()` provides provider-neutral identity hints without network access. Current rules recognize YouTube watch/Shorts URLs, `youtu.be` video URLs, and GitHub/GitLab repository paths. Unknown sites return only safe canonical URL/host hints. The adapter deliberately does not scrape titles, authors, view counts, repository contents or other remote metadata.
+
+## Ingestion pipeline
+
+`ingest_research_source()` composes the layers while preserving their boundaries:
+
+```text
+ResearchSource
+    ↓
+register_research_source()
+    ↓
+extract_source_metadata()
+    ↓
+[capture=True?]
+    ↓
+capture_text()
+    ↓
+save_snapshot()
+    ↓
+attach_snapshot_metadata()
+    ↓
+ResearchIngestResult
+```
+
+With `capture=False`, the operation performs no network I/O and returns the artifact ID, canonical URL and URL-derived metadata. With `capture=True`, a snapshot directory is mandatory and the capture/persistence/provenance stages execute only after successful bounded capture.
+
+The orchestration layer is intentionally thin. It does not summarize, verify, execute downloaded material or infer semantic claims.
 
 ## Safety and evidence semantics
 
