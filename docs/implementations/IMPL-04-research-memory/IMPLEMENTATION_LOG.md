@@ -116,15 +116,60 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 ---
 
-## 6. Failure/remediation register
+## 6. Cycle v0.4 — Explicit research ingestion pipeline
+
+**Date:** 2026-09-17
+
+**Starting state:** source registration, URL metadata extraction and bounded snapshot capture existed as separate capabilities. There was no single explicit operation expressing their intended order or enforcing the capture boundary.
+
+**Objective:** compose the existing layers into a deterministic-to-optional ingestion path without collapsing evidence and interpretation.
+
+**Exact implementation paths:**
+- `src/memory_os/research.py`
+- `src/memory_os/research_pipeline.py`
+- `tests/test_research_pipeline.py`
+- `docs/implementations/IMPL-04-research-memory/BRD.md`
+- `docs/implementations/IMPL-04-research-memory/FRD.md`
+- `docs/implementations/IMPL-04-research-memory/PRD.md`
+- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- `README.md`
+- this log
+
+**Implementation:**
+1. `register_research_source()` now persists safe URL-derived metadata alongside source provenance.
+2. `ResearchIngestResult` records artifact ID, canonical URL, URL-derived metadata, optional snapshot and snapshot path.
+3. `ingest_research_source()` performs registration and metadata derivation without network I/O when `capture=False`.
+4. When `capture=True`, a snapshot directory is mandatory; bounded capture, hash-named persistence and provenance attachment happen in that order.
+
+**Tests:** added three offline integration tests covering network-free registration, end-to-end mocked capture/provenance persistence, and required snapshot-directory validation. No external website is contacted by the tests.
+
+**Failure status:** no implementation failure observed in this cycle. The network-free assertion is deliberate protection against accidental I/O during registration.
+
+**Verification:** commits were accepted on `main`. Latest CI verification remains pending; no green status is claimed until a workflow run for the current test-bearing commits is observed.
+
+**Known limitations:** orchestration is library-level only; no CLI command yet. Snapshot capture remains text-only and uses standard-library HTTP. Provider metadata remains URL-derived observation, not remote verification.
+
+**Evidence commits:**
+- research registration metadata `61531f12992989708e0f09b196e658e909be7914`
+- ingestion pipeline `283690b62a998a0ee99be7fb1dc4c892665b7f36`
+- pipeline tests `8cab3e287b4528e0263fcafac2c2adcd1a1265d0`
+- README v0.4 `ea362dd5f2e47bbf8a82603ca35c5df7a74f613c`
+- FRD v0.4 `8d64ad5e3041dce9eac6bbe7fdfa9dd175be78bf`
+- PRD v0.3 `79022dd0a1d0afb107bf434f4fb6066791c4fcc4`
+- TRD v0.4 `dec60a9fd64299f6ab45e0d9b0e4df8527ffb2fd`
+
+---
+
+## 7. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
 | v0.1 | Source type default bypassed classification | Concrete dataclass default | Blank default + automatic classification | YouTube registration test |
 | v0.2 | None observed | — | — | Snapshot/content-limit/idempotence tests |
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
+| v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
 
-## 7. Current evidence boundary
+## 8. Current evidence boundary
 
 ```text
 URL
@@ -139,9 +184,11 @@ HASHED SNAPSHOT
  ↓
 PRESERVED EVIDENCE
  ↓
+PROVENANCE ATTACHMENT
+ ↓
 SEMANTIC UNDERSTANDING  ← future
 ```
 
-## 8. Next step
+## 9. Next step
 
-Verify v0.2/v0.3 test-bearing commits in CI. Then add a small integration path that registers a source, derives URL metadata, optionally captures bounded content, persists the snapshot and exposes the complete provenance chain. Only after that should semantic research extraction begin.
+Verify v0.2/v0.3/v0.4 test-bearing commits in CI. Then add a small research-source CLI surface if it improves actual user workflow, followed by semantic research extraction only after the evidence boundary remains stable.
