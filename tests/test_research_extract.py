@@ -26,7 +26,7 @@ class ResearchExtractTests(unittest.TestCase):
     def test_ignores_malformed_and_empty_links(self):
         snapshot = SourceSnapshot(
             "https://example.org/",
-            "<a href=''>empty</a><a href='::bad'>bad</a>",
+            "<a href=''>empty</a><a href='https://[bad'>bad</a>",
             "2026-09-17T00:00:00+00:00",
         )
         observations = extract_observations(snapshot)
