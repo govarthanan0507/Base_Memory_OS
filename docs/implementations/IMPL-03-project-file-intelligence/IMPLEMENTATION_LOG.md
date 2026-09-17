@@ -2,15 +2,17 @@
 
 ## Version
 
-v0.3
+v0.4
 
 ## Status
 
-In progress — safe filesystem discovery, artifact registration, structural evidence, Git metadata, artifact change history and explicit project↔conversation continuity are implemented.
+In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history and explicit project↔conversation continuity are implemented.
 
 ## Completed
 
 - Project root discovery using repository/build/dependency/readme markers.
+- Strong-marker precedence so workspace-level README files do not swallow stronger child project boundaries.
+- Git repository roots remain discoverable when the scan root is itself the project boundary.
 - Pruning of common dependency, cache and generated directories.
 - Read-only project inspection.
 - Code-file classification.
@@ -25,11 +27,12 @@ In progress — safe filesystem discovery, artifact registration, structural evi
 - Direct read-only Git evidence for repository presence, branch and HEAD commit where available.
 - ISO-8601 UTC artifact modification timestamps.
 - Append-only artifact change events preserving old/new hash and modification-time evidence.
+- Bounded project-state evidence: README presence, test presence/count, TODO/FIXME count and recent code-file activity.
 - Deterministic `project-report` CLI output.
 - Explicit project-to-conversation linking with entity validation.
 - Accepted candidate projection now establishes project↔conversation continuity as part of the evidence trail.
 - Project reports and project re-entry can surface linked conversations.
-- Tests for read-only behavior, nested project selection, structure analysis, Git metadata, repeatable scans, artifact history and conversation continuity.
+- Tests for read-only behavior, root selection, structure/state analysis, Git metadata, repeatable scans, artifact history and conversation continuity.
 
 ## Current limitation
 
@@ -39,14 +42,16 @@ Project-to-conversation linking is deliberately explicit/evidence-backed. The sy
 
 The discovery layer does not execute discovered code and does not infer project intent solely from filenames as a durable fact.
 
+Structural state evidence is deliberately not used to claim production readiness or code quality.
+
 Automated test execution remains unverified in the available execution environment.
 
 ## Next
 
 1. Validate discovery against representative real workspaces.
-2. Strengthen project-state evidence from repository structure and recorded activity without overclaiming status.
-3. Revisit project-root heuristics so workspace-level README files do not create false project roots.
-4. Improve project report/re-entry with artifact change history and evidence summaries.
+2. Integrate artifact change history more directly into project timeline/re-entry views.
+3. Harden project-state evidence with additional repository-level signals where safe and non-executing.
+4. Review root heuristics against mixed workspace layouts and monorepos.
 5. Begin the IMPL-03 completion gate after runtime verification and representative-workspace validation.
 
 ## Safety
