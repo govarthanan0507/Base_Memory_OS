@@ -1,7 +1,12 @@
 import unittest
 
 from memory_os.core import MemoryStore
-from memory_os.research_registry import list_research_entity_evidence, register_research_candidates
+from memory_os.research_registry import (
+    list_research_entity_evidence,
+    list_research_entities,
+    register_research_candidates,
+    review_research_entity,
+)
 from memory_os.research_semantic import ResearchCandidate
 
 
@@ -27,6 +32,20 @@ class ResearchRegistryTests(unittest.TestCase):
         ]
         entities = register_research_candidates(store, candidates)
         self.assertEqual({entity.kind for entity in entities}, {"tool", "idea"})
+
+    def test_review_changes_status_without_creating_memory(self):
+        store = MemoryStore(":memory:")
+        entity = register_research_candidates(
+            store,
+            [ResearchCandidate("tool", "Graphiti", "Tool: Graphiti", "https://a.example", "hash-a", "2026-09-17T00:00:00+00:00")],
+        )[0]
+        review_research_entity(store, entity.entity_id, "accepted")
+        row = list_research_entities(store, "accepted")[0]
+        self.assertEqual(row["entity_id"], entity.entity_id)
+        self.assertEqual(row["status"], "accepted")
+        self.assertEqual(store.conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0], 0)
+        with self.assertRaises(ValueError):
+            review_research_entity(store, entity.entity_id, "rejected")
 
 
 if __name__ == "__main__":
