@@ -1,6 +1,6 @@
 # IMPL-04 BRD — Research Memory
 
-**Version:** 0.2
+**Version:** 0.3
 
 ## Why this milestone exists
 
@@ -12,7 +12,7 @@ Research is currently easy to lose: a useful video may lead to a repository, a d
 
 ## Outcome
 
-A vendor-independent research-source layer that canonicalizes external URLs, classifies common source types conservatively, preserves provenance, deduplicates repeated registration, and can optionally capture bounded text evidence without silently treating capture as interpretation or verification.
+A vendor-independent research-source layer that canonicalizes external URLs, classifies common source types conservatively, preserves provenance, deduplicates repeated registration, captures bounded evidence on request, and exposes deterministic structural observations from captured evidence before any semantic model is invoked.
 
 ## Scope
 
@@ -25,16 +25,17 @@ A vendor-independent research-source layer that canonicalizes external URLs, cla
 - optional bounded text capture;
 - content hashing and local snapshot persistence;
 - snapshot provenance attached to the source artifact;
+- deterministic extraction of titles, headings and links from captured HTML/text evidence;
 - tests and audit logging.
 
 ## Non-goals
 
 - scraping arbitrary websites at scale;
 - bypassing access controls;
-- semantic summarization;
+- semantic summarization or LLM-generated conclusions;
 - claiming source content is verified merely because it was fetched;
 - automatic project linkage from URLs alone.
 
 ## Success criteria
 
-A source can be registered once, optionally captured as bounded text evidence, and later traced to a content hash and local snapshot with capture metadata. Capture failures or unsupported content must not be represented as successful understanding.
+A source can be registered once, optionally captured as bounded text evidence, traced to a content hash and local snapshot, and structurally inspected for reproducible observations. Structural observations must retain their source snapshot provenance and must not be represented as verified semantic claims.
