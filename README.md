@@ -18,7 +18,7 @@ These layers deliberately preserve the distinction between **URL observation, ca
 
 ## Verification status
 
-The source-identity cycle is verified by GitHub Actions run #164 across Python 3.11–3.14. The v0.2/v0.3/v0.4 source-capture, metadata and pipeline test-bearing commits have been pushed to `main`; CI verification of these latest commits is still pending and will be recorded in the IMPL-04 implementation log before the slices are called green.
+IMPL-04 v0.4 is CI-verified by GitHub Actions workflow `tests`, run #186 (`35181985251`), at head `90c36bfc433baddd66b9b642589ac4c8ef2575b0`. The Python 3.11, 3.12, 3.13 and 3.14 matrix jobs all completed successfully, including the new ingestion-pipeline tests.
 
 ## Status
 
@@ -34,9 +34,9 @@ The source-identity cycle is verified by GitHub Actions run #164 across Python 3
 - **Canonical identity boundary:** provider-facing conversation external IDs are resolved to stable internal conversation IDs before graph linking.
 - **Compact project evidence:** snapshot/history/continuity/artifact view implemented with explicit evidence semantics.
 - **IMPL-04 research identity:** URL normalization, source classification, deterministic research artifact identity and duplicate-safe registration implemented and CI-verified.
-- **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented; latest CI verification pending.
-- **IMPL-04 URL metadata:** provider-neutral YouTube/GitHub/GitLab identity hints implemented without network access; latest CI verification pending.
-- **IMPL-04 ingestion pipeline:** explicit register → metadata → optional capture → snapshot → provenance flow implemented with offline integration tests; latest CI verification pending.
+- **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented and CI-verified in the v0.4 matrix.
+- **IMPL-04 URL metadata:** provider-neutral YouTube/GitHub/GitLab identity hints implemented without network access and CI-verified.
+- **IMPL-04 ingestion pipeline:** explicit register → metadata → optional capture → snapshot → provenance flow implemented with offline integration tests and CI-verified across Python 3.11–3.14.
 
 ## IMPL-04 evidence boundary
 
