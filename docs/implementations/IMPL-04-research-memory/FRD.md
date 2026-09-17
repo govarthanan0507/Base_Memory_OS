@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.3
+**Version:** 0.4
 
 ## Functional requirements
 
@@ -21,6 +21,9 @@
 - FR-15 Extract provider-neutral identity hints from supported URL structures without network access.
 - FR-16 Recognize YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository URL patterns.
 - FR-17 Unknown URL patterns shall return only generic canonical URL/host hints rather than invented provider metadata.
+- FR-18 Provide an explicit ingestion operation that composes source registration and URL metadata derivation.
+- FR-19 When capture is requested, the ingestion operation shall require a snapshot destination, perform bounded capture, persist the snapshot, and attach its provenance.
+- FR-20 The ingestion operation shall not perform network I/O when capture is disabled.
 
 ## Acceptance behavior
 
@@ -29,3 +32,5 @@ Equivalent URL forms such as differing scheme/host case, default HTTPS port, tra
 A captured text response is stored as a separate evidence snapshot identified by its content hash. The artifact records where that snapshot lives and when it was captured. Capture is explicitly an evidence operation; it does not claim that the source is correct, authoritative or semantically understood.
 
 Provider metadata extraction must remain network-free and deterministic for the same canonical URL. Its output describes URL structure only.
+
+The ingestion operation provides the complete deterministic-to-optional boundary in one call: source registration → URL metadata → optional network capture → local snapshot → artifact provenance. Capture errors must surface to the caller rather than being represented as successful ingestion.
