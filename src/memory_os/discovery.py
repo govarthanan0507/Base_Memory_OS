@@ -47,7 +47,10 @@ def likely_project_roots(root:Path)->list[Path]:
             strong=bool(markers&STRONG_PROJECT_MARKERS)
             if strong or has_code: candidates.append((p,strong))
     candidates.sort(key=lambda x:(len(x[0].parts),str(x[0]))); strong=[p for p,s in candidates if s]; selected=[]
-    for candidate,_ in candidates:
+    for candidate,is_strong in candidates:
+        if is_strong:
+            selected.append(candidate)
+            continue
         if any(candidate in s.parents for s in strong): continue
         if not any(parent in candidate.parents for parent in selected): selected.append(candidate)
     if not selected and (root/".git").is_dir(): selected.append(root)
@@ -99,7 +102,7 @@ def inspect_project(root:Path)->Project:
     if readme.is_file():
         try:summary=next((x.lstrip("# ").strip() for x in readme.read_text(encoding="utf-8",errors="replace").splitlines() if x.strip() and not x.startswith("```")),"")
         except OSError:pass
-    metadata={"file_count":len(files),"code_file_count":len(code),"total_bytes":total,"markers":sorted(set(markers)),"dependency_markers":sorted(set(markers)&DEPENDENCY_MARKERS),"likely_entrypoints":sorted(set(entry)),"import_hints":sorted(imports),"git":_git_evidence(root),"state_evidence":_state_evidence(root,code),"discovery_version":"0.4.0"}
+    metadata={"file_count":len(files),"code_file_count":len(code),"total_bytes":total,"markers":sorted(set(markers)),"dependency_markers":sorted(set(markers)&DEPENDENCY_MARKERS),"likely_entrypoints":sorted(set(entry)),"import_hints":sorted(imports),"git":_git_evidence(root),"state_evidence":_state_evidence(root,code),"discovery_version":"0.5.0"}
     confidence=.45+(.15 if code else 0)+(.1 if summary else 0)+(.1 if len(markers)>1 else 0)+(.05 if entry else 0)+(.05 if set(markers)&DEPENDENCY_MARKERS else 0)
     return Project(summary or root.name.replace("_"," ").replace("-"," ").strip().title(),str(root),"PARTIALLY BUILT" if code else "DISCOVERED",min(.95,confidence),summary=summary,metadata=metadata)
 
