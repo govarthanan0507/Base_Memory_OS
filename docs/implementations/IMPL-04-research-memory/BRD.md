@@ -1,6 +1,6 @@
 # IMPL-04 BRD — Research Memory
 
-**Version:** 0.6
+**Version:** 0.9
 
 ## Why this milestone exists
 
@@ -8,11 +8,11 @@ Important research arrives as websites, videos, repositories and documents. The 
 
 ## Business/user problem
 
-Research is currently easy to lose: a useful video may lead to a repository, a downloaded artifact, a conversation and eventually a project. URL-only bookmarks do not preserve that evolving provenance inside the work-memory system. Repeated discovery of the same repository or tool across sources must also converge on one research entity without erasing the separate evidence trails.
+Research is currently easy to lose: a useful video may lead to a repository, a downloaded artifact, a conversation and eventually a project. URL-only bookmarks do not preserve that evolving provenance inside the work-memory system. Repeated discovery of the same repository or tool across sources must converge on one research entity without erasing the separate evidence trails.
 
 ## Outcome
 
-A vendor-independent research-source layer that canonicalizes external HTTP(S) URLs, conservatively classifies common source types, preserves provenance, deduplicates repeated registration, captures bounded evidence on request, exposes deterministic structural observations, produces conservative semantic candidates, and persistently deduplicates those candidates across sources while retaining every distinct evidence occurrence.
+A vendor-independent research-source layer that canonicalizes external HTTP(S) URLs, conservatively classifies common source types, preserves provenance, deduplicates repeated registration, captures bounded evidence on request, exposes deterministic structural observations, produces conservative semantic candidates, and persistently deduplicates those candidates across sources while retaining every distinct evidence occurrence and explicit review state.
 
 ## Scope
 
@@ -47,4 +47,4 @@ A vendor-independent research-source layer that canonicalizes external HTTP(S) U
 
 ## Success criteria
 
-A source can be registered once, optionally captured as bounded text evidence, traced to a content hash and local snapshot, structurally inspected, and converted to conservative reviewable candidates. Repeated candidates from different sources converge on one durable candidate identity while every distinct snapshot/evidence occurrence remains queryable. Every candidate must retain enough provenance to trace it back to evidence. Candidate review changes only candidate status and does not silently create durable memory. Candidate extraction must not imply verification.
+A source can be registered once, optionally captured as bounded text evidence, traced to a content hash and local snapshot, structurally inspected, and converted to conservative reviewable candidates. Repeated candidates from different sources converge on one durable candidate identity while every distinct snapshot/evidence occurrence remains queryable. Candidates can be explicitly accepted or rejected without creating a general durable-memory record. Every candidate must retain enough provenance to trace it back to evidence. Candidate extraction must not imply verification.
