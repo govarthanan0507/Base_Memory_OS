@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.2
+**Version:** 0.3
 
 ## Functional requirements
 
@@ -18,9 +18,14 @@
 - FR-12 Persist snapshots separately from the source artifact and attach snapshot provenance to the artifact.
 - FR-13 Re-attaching the same snapshot metadata shall be idempotent.
 - FR-14 Snapshot capture shall record capture time, content type and HTTP status when available.
+- FR-15 Extract provider-neutral identity hints from supported URL structures without network access.
+- FR-16 Recognize YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository URL patterns.
+- FR-17 Unknown URL patterns shall return only generic canonical URL/host hints rather than invented provider metadata.
 
 ## Acceptance behavior
 
 Equivalent URL forms such as differing scheme/host case, default HTTPS port, trailing slash and fragment normalize to the same canonical source where appropriate. Registering the source repeatedly returns the same stable artifact identity and leaves one artifact record.
 
 A captured text response is stored as a separate evidence snapshot identified by its content hash. The artifact records where that snapshot lives and when it was captured. Capture is explicitly an evidence operation; it does not claim that the source is correct, authoritative or semantically understood.
+
+Provider metadata extraction must remain network-free and deterministic for the same canonical URL. Its output describes URL structure only.
