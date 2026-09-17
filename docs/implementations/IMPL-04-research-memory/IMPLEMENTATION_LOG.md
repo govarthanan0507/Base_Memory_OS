@@ -145,7 +145,7 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 **Failure status:** no implementation failure observed in this cycle. The network-free assertion is deliberate protection against accidental I/O during registration.
 
-**Verification:** commits were accepted on `main`. Latest CI verification remains pending; no green status is claimed until a workflow run for the current test-bearing commits is observed.
+**Verification:** commits were accepted on `main`. Latest CI verification remains pending; no green status is claimed until a workflow run for the current test-bearing head is observed.
 
 **Known limitations:** orchestration is library-level only; no CLI command yet. Snapshot capture remains text-only and uses standard-library HTTP. Provider metadata remains URL-derived observation, not remote verification.
 
@@ -160,7 +160,23 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 ---
 
-## 7. Failure/remediation register
+## 7. CI verification — v0.4 test-bearing main
+
+**Workflow:** `tests`
+
+**Run:** #186 (`35181985251`)
+
+**Head:** `90c36bfc433baddd66b9b642589ac4c8ef2575b0`
+
+**Matrix:** Python 3.11, 3.12, 3.13 and 3.14
+
+**Result:** all four matrix jobs completed successfully. This verifies the current v0.4 test-bearing head, including the research ingestion pipeline tests, on all supported CI Python versions.
+
+**Important:** the repository also has separate workflow runs for intermediate commits; this entry records the run that verified the final v0.4 audit-log head.
+
+---
+
+## 8. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
@@ -168,8 +184,9 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 | v0.2 | None observed | — | — | Snapshot/content-limit/idempotence tests |
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
 | v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
+| v0.4-doc | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
 
-## 8. Current evidence boundary
+## 9. Current evidence boundary
 
 ```text
 URL
@@ -189,6 +206,6 @@ PROVENANCE ATTACHMENT
 SEMANTIC UNDERSTANDING  ← future
 ```
 
-## 9. Next step
+## 10. Next step
 
-Verify v0.2/v0.3/v0.4 test-bearing commits in CI. Then add a small research-source CLI surface if it improves actual user workflow, followed by semantic research extraction only after the evidence boundary remains stable.
+With v0.4 now CI-verified, the next implementation slice should expose the ingestion pipeline through the CLI only if that improves the actual workflow, then begin semantic research extraction behind the preserved evidence boundary. Provider-specific remote metadata should remain an adapter concern and should not leak into the memory core.
