@@ -63,6 +63,36 @@ class ContinuityTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_project_reentry_surfaces_last_conversation_and_open_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                cid = persist_conversation(store, Conversation(
+                    source="local", external_id="c-reentry", title="Research session",
+                    messages=(Message("user", "We still need to test the importer.", 1),),
+                ))
+                pid = store.add_project(Project("Importer", str(Path(tmp) / "importer")))
+                store.relate(pid, "discussed_in", cid)
+                store.add_project_event(pid, "decision", "Keep importer deterministic", timestamp="2026-09-17T05:00:00+00:00")
+                store.add_candidate(
+                    conversation_id=cid,
+                    content="Test the importer with a real ChatGPT export",
+                    memory_type="task",
+                    confidence=0.9,
+                    project_id=pid,
+                    observed_at="2026-09-17T05:01:00+00:00",
+                )
+
+                packet = project_context(store, pid)
+                self.assertEqual(packet["latest_conversation"]["id"], cid)
+                self.assertEqual(len(packet["open_candidates"]), 1)
+                brief = render_project_reentry_brief(store, pid)
+                self.assertIn("Research session", brief)
+                self.assertIn("Keep importer deterministic", brief)
+                self.assertIn("Test the importer with a real ChatGPT export", brief)
+            finally:
+                store.close()
+
     def test_missing_entities_are_explicit(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = MemoryStore(Path(tmp) / "db.sqlite")
