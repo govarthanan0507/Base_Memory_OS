@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-04 — Research Memory v0.5 — deterministic evidence inspection**
+**IMPL-04 — Research Memory v0.6 — provenance-bound semantic candidates**
 
 IMPL-03 established read-only filesystem/project intelligence, artifact registration and history, project timelines, explicit project↔conversation continuity, deterministic nested-project boundaries, and an evidence-labelled project view.
 
@@ -12,17 +12,21 @@ IMPL-04 provides a provider-neutral research-source boundary that normalizes ext
 
 The content layer can explicitly capture bounded text responses, hash them with SHA-256, persist them as separate JSON evidence snapshots, and attach snapshot provenance to the source artifact. A separate URL-only metadata adapter extracts safe provider/resource identity hints for YouTube, `youtu.be`, GitHub and GitLab without making network calls.
 
-The v0.4 ingestion pipeline composes those stages explicitly: register the source, derive URL metadata, optionally capture bounded evidence, persist the snapshot, and attach its provenance. Network I/O happens only when `capture=True` is requested.
+The ingestion pipeline composes those stages explicitly: register the source, derive URL metadata, optionally capture bounded evidence, persist the snapshot, and attach its provenance. Network I/O happens only when `capture=True` is requested.
 
-The v0.5 evidence layer can now inspect an already-captured snapshot deterministically for a title, headings, hyperlinks and absolute URLs. It preserves the snapshot hash and capture timestamp as provenance and does not invoke an LLM or make network requests.
+The structural evidence layer inspects an already-captured snapshot deterministically for a title, headings, hyperlinks and absolute URLs. It preserves the snapshot hash and capture timestamp as provenance and does not invoke an LLM or make network requests.
 
-These layers deliberately preserve the distinction between **URL observation, captured evidence, structural observation, verification and semantic understanding**.
+The new semantic-candidate layer consumes that preserved snapshot evidence and structural observations to identify conservative candidates for referenced repositories, explicitly introduced tools, ideas and source topics. Candidates remain reviewable records with exact evidence provenance; they are not automatically promoted to durable memory or verified claims.
+
+These layers deliberately preserve the distinction between **URL observation, captured evidence, structural observation, candidate extraction, verification and semantic understanding**.
 
 ## Verification status
 
 IMPL-04 v0.4 ingestion tests are CI-verified by GitHub Actions workflow `tests`, run #186 (`35181985251`), with Python 3.11, 3.12, 3.13 and 3.14 matrix jobs successful.
 
-The first CI run for v0.5 structural extraction, run #200 (`35183355300`), exposed one test-fixture error in Python 3.12: the test treated a syntactically valid relative URL reference as malformed. The production implementation was not changed; the fixture was corrected to use a genuinely malformed absolute URL. The remediation commit is `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`; its replacement CI run is pending.
+The first CI run for v0.5 structural extraction, run #200 (`35183355300`), exposed one test-fixture error in Python 3.12: the test treated a syntactically valid relative URL reference as malformed. The production implementation was not changed; the fixture was corrected to use a genuinely malformed absolute URL in commit `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`. The connected workflow lookup has not yet returned a replacement run, so the remediation is not claimed as CI-green.
+
+The v0.7 semantic-candidate implementation and tests are now committed; CI verification of the newest head is pending.
 
 ## Status
 
@@ -41,7 +45,8 @@ The first CI run for v0.5 structural extraction, run #200 (`35183355300`), expos
 - **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented and CI-verified.
 - **IMPL-04 URL metadata:** provider-neutral YouTube/GitHub/GitLab identity hints implemented without network access and CI-verified.
 - **IMPL-04 ingestion pipeline:** explicit register → metadata → optional capture → snapshot → provenance flow implemented with offline integration tests.
-- **IMPL-04 structural evidence:** deterministic title/headings/link/URL observations over captured snapshots implemented with provenance-preserving offline tests; remediation is pending CI verification.
+- **IMPL-04 structural evidence:** deterministic title/headings/link/URL observations over captured snapshots implemented with provenance-preserving offline tests; remediation CI is pending.
+- **IMPL-04 semantic candidates:** deterministic repository/tool/idea/topic candidate extraction implemented with provenance, confidence, review status and deduplication; newest-head CI verification is pending.
 
 ## IMPL-04 evidence boundary
 
@@ -58,11 +63,11 @@ SNAPSHOT PRESERVED
       ↓
 STRUCTURAL OBSERVATION  ← deterministic, evidence-bound
       ↓
-PROVENANCE ATTACHED
+SEMANTIC CANDIDATE      ← deterministic, reviewable
+      ↓
+DURABLE MEMORY / CLAIM  ← not automatic
       ↓
 SOURCE VERIFIED         ← not implied
-      ↓
-SOURCE UNDERSTOOD       ← future semantic layer
 ```
 
 ## Roadmap
