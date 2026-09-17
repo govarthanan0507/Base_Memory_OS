@@ -2,11 +2,11 @@
 
 ## Version
 
-v0.4
+v0.5
 
 ## Status
 
-In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history and explicit project↔conversation continuity are implemented.
+In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration and explicit project↔conversation continuity are implemented.
 
 ## Completed
 
@@ -32,7 +32,8 @@ In progress — safe filesystem discovery, artifact registration, structural/sta
 - Explicit project-to-conversation linking with entity validation.
 - Accepted candidate projection now establishes project↔conversation continuity as part of the evidence trail.
 - Project reports and project re-entry can surface linked conversations.
-- Tests for read-only behavior, root selection, structure/state analysis, Git metadata, repeatable scans, artifact history and conversation continuity.
+- Project timelines now include append-only artifact change events, including old/new hash and modification-time evidence.
+- Tests for read-only behavior, root selection, structure/state analysis, Git metadata, repeatable scans, artifact history, timeline artifact-change rendering and conversation continuity.
 
 ## Current limitation
 
@@ -46,13 +47,14 @@ Structural state evidence is deliberately not used to claim production readiness
 
 Automated test execution remains unverified in the available execution environment.
 
+Representative real-workspace validation is not yet complete.
+
 ## Next
 
 1. Validate discovery against representative real workspaces.
-2. Integrate artifact change history more directly into project timeline/re-entry views.
-3. Harden project-state evidence with additional repository-level signals where safe and non-executing.
-4. Review root heuristics against mixed workspace layouts and monorepos.
-5. Begin the IMPL-03 completion gate after runtime verification and representative-workspace validation.
+2. Harden root heuristics against mixed workspace layouts and monorepos using deterministic fixtures.
+3. Add a compact project-evidence/re-entry view that distinguishes current artifact state from historical artifact changes.
+4. Obtain reliable runtime/CI verification and then evaluate the IMPL-03 completion gate.
 
 ## Safety
 
