@@ -24,8 +24,6 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Fix:** default changed to empty string; registration classifies when the explicit type is blank.
 
-**Regression test:** YouTube registration without an explicit type must produce `video`.
-
 **Verification:** GitHub Actions run #164 (`35180978862`) passed on Python 3.11–3.14.
 
 ---
@@ -68,8 +66,6 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Implementation:** `ResearchIngestResult` plus `ingest_research_source()`. `capture=False` is network-free; `capture=True` requires a snapshot directory and performs bounded capture → hash-named persistence → provenance attachment.
 
-**Tests:** offline registration, mocked end-to-end capture/provenance, required snapshot-directory validation.
-
 **Verification:** workflow `tests`, run #186 (`35181985251`), passed across Python 3.11–3.14.
 
 ---
@@ -80,15 +76,13 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** expose deterministic registration and explicit capture through the CLI.
 
-**Implementation:** `add-research-source` and `capture-research-source`; the authoritative command implementation remains in `src/memory_os/cli.py`.
+**Implementation:** `add-research-source` and `capture-research-source`.
 
 **Failure:** first implementation-log update returned GitHub HTTP 409 because the log blob changed after fetch.
 
 **Root cause:** stale optimistic-concurrency SHA.
 
 **Fix:** re-fetched the current log blob and retried.
-
-**Known limitation:** `cli_research.py` remains as a helper/extraction experiment but is not the console entry point.
 
 ---
 
@@ -98,18 +92,11 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** extract reproducible title, heading, hyperlink and absolute-URL observations from captured evidence without network access.
 
-**Implementation:** `src/memory_os/research_extract.py` and `tests/test_research_extract.py`. Relative links are resolved and normalized; duplicate observations preserve first-observed order; snapshot hash/timestamp remain provenance.
+**Implementation:** `src/memory_os/research_extract.py` and tests. Relative links are resolved and normalized; duplicate observations preserve first-observed order; snapshot hash/timestamp remain provenance.
 
-**Test failure:** CI run #200 (`35183355300`) failed in Python 3.12. The test used `::bad` as a malformed URL, but `urljoin()` correctly treated it as a relative reference.
+**Test failure:** CI run #200 (`35183355300`) failed in Python 3.12 because `::bad` is a valid relative URL reference rather than malformed input.
 
-**Root cause:** the fixture was not actually malformed for URL resolution. A later corrected fixture used `https://[bad`, which exposed a second, real robustness gap: Python's `urljoin()` can itself raise `ValueError` for malformed absolute references.
-
-**Remediation sequence:**
-1. Test fixture corrected in `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
-2. Subsequent CI run #211 (`35184049758`) exposed the production exception gap.
-3. Production code hardened in `ba8204e920136c0aee975dec8ab9d5b07e41ae0c` to ignore `TypeError`/`ValueError` from malformed link resolution/normalization.
-
-**Regression protection:** positive relative-link coverage remains; malformed absolute links now exercise the production exception boundary.
+**Remediation sequence:** fixture corrected in `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`; run #211 (`35184049758`) then exposed a real `urljoin()` `ValueError` boundary; production hardened in `ba8204e920136c0aee975dec8ab9d5b07e41ae0c`.
 
 ---
 
@@ -119,17 +106,9 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** create a deterministic semantic-candidate boundary that can later be replaced or augmented by an LLM without changing provenance semantics.
 
-**Exact implementation paths:** `src/memory_os/research_semantic.py`, `tests/test_research_semantic.py`, IMPL-04 BRD/FRD/PRD/TRD, `README.md` and this log.
+**Implementation:** `src/memory_os/research_semantic.py` and tests. Candidates cover repositories, explicitly introduced tools, ideas and source topics. Each retains exact source URL, snapshot hash, capture timestamp, evidence, confidence and review status.
 
-**Implementation:** added `ResearchCandidate` and `extract_semantic_candidates()`. The extractor consumes a `SourceSnapshot` plus `ResearchObservations` and produces conservative candidates for GitHub/GitLab repositories, explicitly introduced tools, explicitly introduced ideas, and title/heading topics. Every candidate stores exact source URL, snapshot content hash, capture timestamp, evidence text, confidence and `review_status=candidate`. Duplicate repository references are collapsed within one result.
-
-**Boundary rule:** candidates are not durable memories, verified claims, endorsements or project links. The implementation makes no network calls, invokes no LLM and executes no downloaded code.
-
-**Tests added:** repository/tool/idea/topic extraction with provenance; duplicate repository reference deduplication; unknown-source behavior that does not invent provider metadata.
-
-**Known limitations:** textual patterns are intentionally narrow and heuristic. The candidate layer does not yet persist candidates into the graph.
-
-**Evidence commits:** semantic implementation `5ca23dfebac290aa9b8285605db3dba8c1aaf4f1`; semantic tests `41746e5c2eb775ee64b703fb7983a8da9f1393fe`.
+**Known limitation:** candidates initially remained in-memory and were not cross-source persistent entities.
 
 ---
 
@@ -137,13 +116,11 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Date:** 2026-09-17
 
-**Objective:** prove the evidence-to-candidate chain as one offline integration behavior rather than only separate unit tests.
+**Objective:** prove source → snapshot → observation → candidate as one offline behavior.
 
-**Implementation:** `tests/test_research_semantic_pipeline.py` exercises source → snapshot → observations → candidates and asserts exact provenance plus distinct repository/tool/idea/topic outputs.
+**Implementation:** `tests/test_research_semantic_pipeline.py`.
 
-**Verification:** run #218 (`35184233434`) completed successfully across Python 3.11–3.14 for the integrated semantic pipeline head.
-
-**Known limitation:** candidate records remain an in-memory intermediate representation; cross-source durable deduplication and review persistence are not yet implemented.
+**Verification:** run #218 (`35184233434`) completed successfully across Python 3.11–3.14.
 
 ---
 
@@ -151,37 +128,57 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Date:** 2026-09-17
 
-**Objective:** add an additional regression proving that persisted artifact snapshot provenance and emitted semantic candidates share the same exact evidence identity, while keeping the test portable across CI platforms.
+**Objective:** prove persisted artifact snapshot provenance and emitted semantic candidates share the exact evidence identity.
 
-**Implementation path:** `tests/test_research_provenance_chain.py`.
+**Failure:** run #223 (`35184529309`) failed because the new test passed unsupported `title=` to `ingest_research_source()`.
 
-**Failure:** CI run #223 (`35184529309`) failed in Python 3.13 with `TypeError: ingest_research_source() got an unexpected keyword argument 'title'`.
+**Root cause:** test assumed a convenience API that does not exist. The test also used a Unix-specific temporary path.
 
-**Root cause:** the new test incorrectly assumed the ingestion function accepted convenience keyword arguments; its API requires a `ResearchSource` object.
+**Remediation:** `b86ee0505639701a9073768bb57788370be453c1` constructs `ResearchSource` explicitly and uses `TemporaryDirectory()`.
 
-**Remediation:** test corrected in `b86ee0505639701a9073768bb57788370be453c1` to construct `ResearchSource` explicitly. The hard-coded `/tmp/...` snapshot path was also replaced with `tempfile.TemporaryDirectory()` so the regression is platform-independent.
-
-**Production impact:** none. No production implementation was changed for this failure.
-
-**Current verification:** corrected head CI run #224 (`35184592014`) is queued at this log update; no green result is claimed until its jobs complete.
+**Verification:** run #224 (`35184592014`) passed Python 3.11, 3.12, 3.13 and 3.14.
 
 ---
 
-## 12. Failure/remediation register
+## 12. Cycle v1.0 — Persistent cross-source research registry
+
+**Date:** 2026-09-17
+
+**Objective:** turn semantic candidates into durable, deduplicated research entities without losing independent evidence provenance.
+
+**Exact implementation paths:**
+- `src/memory_os/research_registry.py`
+- `tests/test_research_registry.py`
+- `docs/implementations/IMPL-04-research-memory/BRD.md`
+- `docs/implementations/IMPL-04-research-memory/FRD.md`
+- `docs/implementations/IMPL-04-research-memory/PRD.md`
+- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- `README.md`
+
+**Implementation:** added `research_entities` with deterministic identity from `kind + normalized value`, and `research_entity_evidence` for distinct source/snapshot/evidence occurrences. Duplicate entity identity converges across sources while duplicate evidence insertion is idempotent. Added explicit `candidate → accepted/rejected` review state with review timestamp. Review intentionally does not create a general durable-memory record.
+
+**Tests:** same repository from two sources produces one entity and two evidence rows; different candidate kinds remain distinct; review changes status and does not insert into `memories`.
+
+**CI verification:** corrected-head run #224 (`35184592014`) passed all four Python versions before this registry documentation closure. The registry changes and documentation are on newer commits and therefore require a fresh CI run before the final IMPL-04 gate is considered green.
+
+---
+
+## 13. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
 | v0.1 | Source type default bypassed classification | Concrete dataclass default | Blank default + automatic classification | YouTube registration test |
 | v0.2 | None observed | — | — | Snapshot/content-limit/idempotence tests |
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
-| v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
-| v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
-| v0.6 | Structural extraction test initially used a valid relative URL as malformed; corrected fixture then exposed uncaught `urljoin()` ValueError | Test fixture ambiguity followed by production exception gap | Correct fixture + catch URL resolution/normalization errors | Positive relative-link test + malformed-link regression |
-| v0.7 | None observed during candidate implementation | — | — | Provenance, deduplication and unknown-source tests |
-| v0.8 | None observed | — | — | Full source→snapshot→observation→candidate provenance assertions |
-| v0.9 | Provenance-chain regression passed unsupported `title=` argument; also used a Unix-specific temp path | Test API mismatch and non-portable fixture | Construct `ResearchSource` explicitly + `TemporaryDirectory` | Regression now matches public API and is platform-independent |
+| v0.4 | None observed | — | — | Offline pipeline tests |
+| v0.5 | Log update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
+| v0.6 | Bad malformed-link fixture; then real `urljoin()` exception | Fixture ambiguity followed by production boundary gap | Correct fixture + catch URL resolution/normalization errors | Positive relative-link + malformed-link tests |
+| v0.7 | None observed | — | — | Candidate provenance/dedup tests |
+| v0.8 | None observed | — | — | Full provenance-chain assertions |
+| v0.9 | Test used unsupported ingestion keyword and Unix-specific path | Test/API mismatch and portability issue | Explicit `ResearchSource` + `TemporaryDirectory()` | Corrected-head CI #224 |
+| v1.0 | No implementation failure observed in registry cycle | — | Fresh CI required after final registry/docs commits | Registry dedup/review tests |
 
-## 13. Current evidence boundary
+## 14. Current evidence boundary
 
 ```text
 URL
@@ -198,11 +195,23 @@ PRESERVED EVIDENCE
  ↓
 STRUCTURAL OBSERVATION ── evidence-bound
  ↓
-SEMANTIC CANDIDATES ── reviewable, provenance-bound
+SEMANTIC CANDIDATE ── reviewable, provenance-bound
+ ↓
+RESEARCH ENTITY ── deduplicated identity + evidence history
+ ↓
+ACCEPT / REJECT ── explicit review state
  ↓
 DURABLE MEMORY / VERIFIED CLAIM ── not automatic
 ```
 
-## 14. Next step
+## 15. IMPL-04 gate state
 
-Verify run #224. Then add candidate persistence/review and a cross-source deduplication boundary so repeated repositories/tools/entities from different research sources can converge on one durable artifact/entity while retaining every source and snapshot as provenance.
+**Implementation:** complete for the defined v0.9 scope.
+
+**Documentation:** BRD/FRD/PRD/TRD, README and this audit log updated.
+
+**Verification:** registry behavior is covered by automated tests; the last fully verified head is run #224 before the final registry/doc commits. A fresh CI run on the current head is required before marking the milestone release gate green.
+
+## 16. Next milestone
+
+IMPL-05 — Re-entry: use the existing conversation/project/artifact timelines and research provenance to generate a compact, evidence-labelled re-entry briefing that answers where the user left off and what unresolved thread should be resumed, without pretending inference is fact.
