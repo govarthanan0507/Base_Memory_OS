@@ -2,16 +2,18 @@
 
 ## Version
 
-v0.7
+v0.8
 
 ## Status
 
-In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration, explicit project↔conversation continuity, and a CI-driven integration repair pass are implemented.
+In progress — safe filesystem discovery, artifact registration, structural/state evidence, Git metadata, artifact change history, timeline integration, explicit project↔conversation continuity, CI-driven integration repair, and deterministic nested-project boundary handling are implemented.
 
 ## Completed
 
 - Project root discovery using repository/build/dependency/readme markers.
 - Strong-marker precedence so workspace-level README files do not swallow stronger child project boundaries.
+- Strong nested project boundaries are retained for monorepo-like layouts.
+- Parent project scans prune nested selected project roots so child artifacts are not incorrectly attributed to the parent project.
 - Git repository roots remain discoverable when the scan root is itself the project boundary.
 - Pruning of common dependency, cache and generated directories.
 - Read-only project inspection.
@@ -38,10 +40,11 @@ In progress — safe filesystem discovery, artifact registration, structural/sta
 - Candidate persistence now assigns a stable observed timestamp when the source message has none, preventing repeated candidate projection from producing different project-event identities.
 - Explicit evidence linking accepts either a canonical conversation ID or its provider external ID, while storing the canonical relationship target.
 - GitHub Actions now executes the test suite across Python 3.11–3.14 and has exposed several real integration defects that were repaired in sequence.
+- Deterministic monorepo-like discovery coverage added to the test suite.
 
 ## CI evidence
 
-The initial CI diagnostic run executed 38 tests and reported 3 failures plus 11 errors. Repair passes eliminated the candidate-store, candidate-extraction, discovery-artifact and most continuity/evidence compatibility defects. The latest observed run narrowed the remaining issues to continuity self-expansion and candidate-event idempotence; both were patched in the current branch. A fresh full-matrix run is required before declaring the branch green.
+The initial CI diagnostic run executed 38 tests and reported 3 failures plus 11 errors. Repair passes eliminated the candidate-store, candidate-extraction, discovery-artifact and continuity/evidence compatibility defects. The most recent observed failures were continuity self-expansion and candidate-event idempotence; both were patched. The current monorepo boundary change adds another validation case. A fresh full-matrix run is required before declaring the branch green.
 
 ## Current limitation
 
@@ -57,8 +60,8 @@ Representative real-workspace validation is not yet complete.
 
 ## Next
 
-1. Verify the current repair pass with a fresh full CI matrix.
-2. Add deterministic representative mixed-workspace and monorepo-like fixtures.
+1. Verify the current monorepo boundary change with a fresh full CI matrix.
+2. Add/validate representative mixed-workspace fixtures covering unrelated scripts and nested project roots.
 3. Add a compact project-evidence/re-entry view that distinguishes current artifact state from historical artifact changes.
 4. Re-run the IMPL-03 completion gate only after CI is green and representative discovery fixtures pass.
 
