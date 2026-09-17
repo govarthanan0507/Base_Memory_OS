@@ -1,6 +1,6 @@
 # IMPL-04 TRD — Research Memory
 
-**Version:** 0.6
+**Version:** 0.7
 
 ## Paths
 
@@ -8,14 +8,15 @@
 - `src/memory_os/research_content.py` — bounded text capture, content hashing, snapshot persistence and artifact provenance attachment
 - `src/memory_os/research_metadata.py` — provider-neutral metadata hints derived from URL structure only
 - `src/memory_os/research_pipeline.py` — explicit source-ingestion orchestration
-- `src/memory_os/research_extract.py` — deterministic structural observations from captured evidence
+- `src/memory_os/research_extract.py` — deterministic structural observations from captured evidence; malformed URL resolution is safely ignored
 - `src/memory_os/research_semantic.py` — conservative, provenance-bound semantic candidate extraction
 - `tests/test_research.py` — deterministic normalization, classification and deduplication tests
 - `tests/test_research_content.py` — snapshot hashing, persistence, idempotent attachment and byte-bound tests
 - `tests/test_research_metadata.py` — YouTube/repository/unknown-source metadata tests
 - `tests/test_research_pipeline.py` — offline integration tests for registration, optional capture and provenance
-- `tests/test_research_extract.py` — structural title/heading/link extraction tests
+- `tests/test_research_extract.py` — structural title/heading/link extraction and malformed-link regression tests
 - `tests/test_research_semantic.py` — candidate extraction, deduplication and provenance tests
+- `tests/test_research_semantic_pipeline.py` — source → snapshot → observations → candidates provenance-chain integration test
 - `src/memory_os/core.py` — artifact persistence and stable IDs
 
 ## Technical approach
@@ -42,7 +43,7 @@ Registration also persists safe URL-derived metadata returned by `extract_source
 
 ## Structural evidence extraction
 
-`extract_observations()` operates only on an existing `SourceSnapshot`. It uses bounded regular-expression parsing suitable for the current lightweight evidence layer to collect a title, headings, hyperlinks and absolute URLs. Relative hyperlinks are resolved against the captured source URL and normalized through the canonical URL boundary. Duplicate observations are removed while preserving first-observed order.
+`extract_observations()` operates only on an existing `SourceSnapshot`. It uses bounded regular-expression parsing suitable for the current lightweight evidence layer to collect a title, headings, hyperlinks and absolute URLs. Relative hyperlinks are resolved against the captured source URL and normalized through the canonical URL boundary. `urljoin()` and URL normalization failures are ignored so malformed link input cannot crash the observation boundary. Duplicate observations are removed while preserving first-observed order.
 
 The result carries the snapshot content hash and capture timestamp. This is an evidence observation object, not a memory record and not a semantic claim. No network request, LLM inference, code execution or source verification occurs.
 
@@ -58,6 +59,24 @@ The result carries the snapshot content hash and capture timestamp. This is an e
 Each candidate stores kind, normalized value, exact evidence text, source URL, snapshot content hash, capture timestamp, confidence and `review_status=candidate`. Candidates are deduplicated by kind/value/evidence within one result.
 
 This is a deliberate semantic boundary, not a full semantic understanding engine. Heuristics are deterministic and intentionally conservative. Candidates are never automatically inserted into durable memory, treated as verified claims, or used to assert that a referenced repository/tool is actually suitable. A future model adapter may propose richer candidates, but it must preserve the same provenance and review boundary.
+
+## Provenance-chain integration
+
+`tests/test_research_semantic_pipeline.py` exercises the complete offline evidence chain on one synthetic mixed-source document:
+
+```text
+captured source
+    ↓
+SourceSnapshot + SHA-256
+    ↓
+ResearchObservations
+    ↓
+ResearchCandidate records
+    ↓
+source URL + content hash + capture timestamp + review status
+```
+
+The integration assertion verifies that every produced candidate remains traceable to the exact snapshot and that repository/tool/idea/topic outputs remain distinct intermediate records.
 
 ## Ingestion pipeline
 
