@@ -80,7 +80,7 @@ class ContinuityTests(unittest.TestCase):
                     source="test",
                     source_message_id="msg-1",
                     confidence=0.9,
-                    project_id=pid,
+                    metadata={"project_id": pid},
                     observed_at="2026-09-17T05:01:00+00:00",
                 ))
 
