@@ -30,12 +30,20 @@ class DiscoveryTests(unittest.TestCase):
             root = Path(tmp) / "demo"
             root.mkdir()
             (root / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
-            (root / "main.py").write_text("import sqlite3\nimport pathlib\n", encoding="utf-8")
+            (root / "main.py").write_text("import sqlite3\nimport pathlib\n# TODO: wire CLI\n", encoding="utf-8")
+            tests = root / "tests"
+            tests.mkdir()
+            (tests / "test_main.py").write_text("def test_smoke(): pass\n", encoding="utf-8")
             project = inspect_project(root)
             self.assertEqual(project.status, "PARTIALLY BUILT")
             self.assertIn("pyproject.toml", project.metadata["dependency_markers"])
             self.assertIn("main.py", project.metadata["likely_entrypoints"])
             self.assertIn("sqlite3", project.metadata["import_hints"])
+            evidence = project.metadata["state_evidence"]
+            self.assertTrue(evidence["readme_present"] is False)
+            self.assertTrue(evidence["has_tests"])
+            self.assertEqual(evidence["test_file_count"], 1)
+            self.assertEqual(evidence["todo_fixme_count"], 1)
 
     def test_git_metadata_is_read_without_running_project_code(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -90,15 +98,22 @@ class DiscoveryTests(unittest.TestCase):
             finally:
                 store.close()
 
-    def test_nested_project_does_not_duplicate_outer_root(self):
+    def test_workspace_readme_does_not_swallow_strong_child_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             outer = root / "outer"
             inner = outer / "inner"
             inner.mkdir(parents=True)
-            (outer / "README.md").write_text("# Outer\n", encoding="utf-8")
+            (outer / "README.md").write_text("# Workspace\n", encoding="utf-8")
             (inner / "pyproject.toml").write_text("[project]\nname='inner'\n", encoding="utf-8")
-            self.assertEqual(likely_project_roots(root), [outer.resolve()])
+            self.assertEqual(likely_project_roots(root), [inner.resolve()])
+
+    def test_git_root_is_kept_when_it_is_the_workspace_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
+            self.assertEqual(likely_project_roots(root), [root.resolve()])
 
 
 if __name__ == "__main__":
