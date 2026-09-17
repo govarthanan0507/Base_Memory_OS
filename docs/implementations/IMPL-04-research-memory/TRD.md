@@ -1,6 +1,6 @@
 # IMPL-04 TRD — Research Memory
 
-**Version:** 0.5
+**Version:** 0.6
 
 ## Paths
 
@@ -9,11 +9,13 @@
 - `src/memory_os/research_metadata.py` — provider-neutral metadata hints derived from URL structure only
 - `src/memory_os/research_pipeline.py` — explicit source-ingestion orchestration
 - `src/memory_os/research_extract.py` — deterministic structural observations from captured evidence
+- `src/memory_os/research_semantic.py` — conservative, provenance-bound semantic candidate extraction
 - `tests/test_research.py` — deterministic normalization, classification and deduplication tests
 - `tests/test_research_content.py` — snapshot hashing, persistence, idempotent attachment and byte-bound tests
 - `tests/test_research_metadata.py` — YouTube/repository/unknown-source metadata tests
 - `tests/test_research_pipeline.py` — offline integration tests for registration, optional capture and provenance
 - `tests/test_research_extract.py` — structural title/heading/link extraction tests
+- `tests/test_research_semantic.py` — candidate extraction, deduplication and provenance tests
 - `src/memory_os/core.py` — artifact persistence and stable IDs
 
 ## Technical approach
@@ -24,7 +26,7 @@ Research sources reuse the existing artifact contract. The canonical URL is the 
 
 Classification is conservative and URL-derived: YouTube-like hosts map to `video`, common Git hosting hosts map to `repository`, common document extensions map to `document`, and other HTTP(S) sources map to `website`.
 
-Registration also persists safe URL-derived metadata returned by `extract_source_metadata()`. A local import keeps the two modules acyclic.
+Registration also persists safe URL-derived metadata returned by `extract_source_metadata()`.
 
 ## Source capture
 
@@ -32,7 +34,7 @@ Registration also persists safe URL-derived metadata returned by `extract_source
 
 `save_snapshot()` stores the captured evidence as a JSON file named by content hash. The snapshot contains explicit provenance metadata and is separate from the canonical research artifact so a source's identity is not confused with one particular capture.
 
-`attach_snapshot_metadata()` appends an idempotent snapshot record to the existing artifact metadata. It does not silently replace the source artifact's identity.
+`attach_snapshot_metadata()` appends an idempotent snapshot record to the existing artifact metadata.
 
 ## URL metadata adapters
 
@@ -44,9 +46,20 @@ Registration also persists safe URL-derived metadata returned by `extract_source
 
 The result carries the snapshot content hash and capture timestamp. This is an evidence observation object, not a memory record and not a semantic claim. No network request, LLM inference, code execution or source verification occurs.
 
-## Ingestion pipeline
+## Semantic candidate extraction
 
-`ingest_research_source()` composes the layers while preserving their boundaries:
+`extract_semantic_candidates()` consumes an existing `SourceSnapshot` plus its `ResearchObservations`. It emits a small, provider-neutral `ResearchCandidate` record for:
+
+- repository references found in observed GitHub/GitLab URLs;
+- tools explicitly introduced by conservative `tool/library/framework/platform/service/software` textual patterns;
+- ideas explicitly introduced by conservative `idea/project/approach/concept` textual patterns;
+- source topics represented by the captured title and headings.
+
+Each candidate stores kind, normalized value, exact evidence text, source URL, snapshot content hash, capture timestamp, confidence and `review_status=candidate`. Candidates are deduplicated by kind/value/evidence within one result.
+
+This is a deliberate semantic boundary, not a full semantic understanding engine. Heuristics are deterministic and intentionally conservative. Candidates are never automatically inserted into durable memory, treated as verified claims, or used to assert that a referenced repository/tool is actually suitable. A future model adapter may propose richer candidates, but it must preserve the same provenance and review boundary.
+
+## Ingestion pipeline
 
 ```text
 ResearchSource
@@ -63,21 +76,21 @@ save_snapshot()
     ↓
 attach_snapshot_metadata()
     ↓
-ResearchIngestResult
+extract_observations(snapshot)
     ↓
-extract_observations(snapshot)  ← optional deterministic evidence inspection
+extract_semantic_candidates(snapshot, observations)
+    ↓
+review / future memory admission
 ```
 
 With `capture=False`, the operation performs no network I/O and returns the artifact ID, canonical URL and URL-derived metadata. With `capture=True`, a snapshot directory is mandatory and the capture/persistence/provenance stages execute only after successful bounded capture.
 
 ## Safety and evidence semantics
 
-Capture is an evidence acquisition step, not semantic understanding. Structural extraction is likewise evidence inspection, not interpretation. The implementation does not execute downloaded content, summarize it, infer claims from it, or declare it authoritative. The byte limit is a resource-control boundary, and decode failures are surfaced rather than converted into invented text.
-
-URL-derived provider metadata and structural observations are observations about supplied URL/evidence structure. They are not verified statements about the current remote resource.
+Capture is an evidence acquisition step, not semantic understanding. Structural extraction and semantic candidate extraction are evidence inspection steps, not verification. The implementation does not execute downloaded content, silently summarize it, or declare it authoritative. Candidate records remain explicitly reviewable and provenance-bound.
 
 No access-control bypass, credential handling or arbitrary code execution is implemented.
 
 ## Future extension points
 
-Fetched provider metadata, repository/video/document extraction, citation relationships, content indexing and semantic research synthesis can be added after this deterministic evidence layer is stable.
+Fetched provider metadata, repository/video/document extraction, claim-level citation relationships, content indexing and model-assisted semantic research synthesis can be added behind the same evidence and review boundary.
