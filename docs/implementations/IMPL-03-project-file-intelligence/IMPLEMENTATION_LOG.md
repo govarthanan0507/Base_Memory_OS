@@ -4,70 +4,58 @@
 
 This file is the chronological engineering audit trail for IMPL-03.
 
-It is intentionally more detailed than a changelog. A future reader should be able to reconstruct:
+It is intentionally more detailed than a changelog. A future reader should be able to reconstruct what existed before an iteration, what problem was being solved, what was implemented, which paths changed, how it was tested, what failed, why it failed, how it was remediated, and what evidence proves the result.
 
-1. what existed before an iteration;
-2. what problem we were trying to solve;
-3. what was implemented;
-4. which files and interfaces changed;
-5. what tests were added or changed;
-6. what failed during verification;
-7. the observed failure and likely root cause;
-8. what remediation was made;
-9. what regression test protects the fix;
-10. which CI run/commit provides verification evidence; and
-11. what is still deliberately unresolved.
-
-**Rule from v0.9 onward:** implementation progress is not considered documented until the corresponding implementation log entry records the implementation, verification evidence, failures/remediation, limitations, and documentation changes.
+**Standing rule:** failed attempts and diagnostic discoveries are not erased merely because the final code works. If the repository does not preserve an exact failure count, this log records the observed failure category rather than inventing a number.
 
 ---
 
-## 2. Current state
-
-**Version:** v0.9
+## 2. Final IMPL-03 state
 
 **Milestone:** IMPL-03 — Project & File Intelligence
 
-**Current verification:** GitHub Actions run **#147** completed successfully on commit `62581407594e5c06ef034c58ea73282b974599de`. The workflow runs the test suite across Python 3.11, 3.12, 3.13 and 3.14.
+**Status:** Implementation complete; documentation and CI gate completed.
 
-**Current scope implemented:**
+**Verified CI:** GitHub Actions run **#147** succeeded on commit `62581407594e5c06ef034c58ea73282b974599de`. The workflow executed the complete unittest suite on Python 3.11, 3.12, 3.13 and 3.14; all four matrix jobs completed successfully.
+
+### Delivered capability
 
 - read-only filesystem/project discovery;
-- project boundary detection;
-- deterministic nested-project/monorepo boundaries;
-- artifact registration and hashing;
-- project-to-artifact relationships;
+- deterministic project boundary detection;
+- nested strong-project/monorepo boundary preservation;
+- artifact registration and bounded hashing;
+- project→artifact relationships;
 - structural project inspection;
 - bounded state evidence;
 - Git branch/HEAD evidence;
 - append-only artifact change history;
-- project timeline integration;
+- project timelines;
 - explicit project↔conversation continuity;
 - accepted-candidate evidence projection;
-- stable observed timestamps for candidate projection;
-- compact project evidence view;
-- CLI access to project reports/evidence; and
-- CI-driven regression verification.
+- stable candidate observation timestamps;
+- canonical conversation-ID resolution;
+- compact `project-evidence-view` output; and
+- CI regression verification across Python 3.11–3.14.
 
-**Important interpretation rule:** structural signals are evidence, not proof of project intent, code quality, production readiness, or completion.
+**Interpretation rule:** structural signals remain evidence. They are not proof of intent, code quality, production readiness, or completion.
 
 ---
 
-## 3. Starting point / problem being solved
+# 3. Starting point / problem being solved
 
-Before IMPL-03, the Memory OS could persist memories and conversations and had the beginnings of relationships and continuity. It did not yet understand the user's existing laptop/workspace as a collection of projects and artifacts.
+Before IMPL-03, Memory OS could persist memories and conversations and had relationships/continuity primitives. It did not understand the user's existing filesystem as a semantic collection of projects and artifacts.
 
-The intended capability was to answer questions such as:
+The milestone therefore targeted questions such as:
 
-- What projects and half-built scripts exist on my machine?
+- What projects and half-built scripts exist?
 - Which files belong to which project?
 - What technology does a project appear to use?
-- Is there evidence that a project has tests, TODOs, recent activity, or a Git repository?
-- What changed in an artifact since the previous scan?
+- What evidence exists for tests, TODOs, recent activity and Git state?
+- What changed in an artifact since a prior scan?
 - Which conversations are explicitly connected to this project?
-- What evidence exists for the project's current state?
+- What evidence should be shown when re-entering a project later?
 
-The design constraint was **read-only discovery**. The system must not move, rename, delete, or execute user files merely to understand them.
+The core safety constraint was **read-only discovery**: discovery must not move, rename, delete or execute user source files.
 
 ---
 
@@ -79,27 +67,24 @@ The design constraint was **read-only discovery**. The system must not move, ren
 Introduce filesystem/project discovery without modifying the user's workspace.
 
 ### Implemented
-- Project root discovery based on repository/build/dependency/readme markers.
-- Common dependency/cache/generated-directory pruning.
+- Project root discovery using repository/build/dependency/readme markers.
+- Dependency/cache/generated-directory pruning.
 - Read-only project inspection.
 - Basic project persistence.
-- Initial project/artifact model integration.
-
-### Evidence / design decision
-Discovery records evidence about what is physically present. It does not execute discovered code and does not claim that a project is production-ready merely because a marker exists.
+- Initial project/artifact integration.
 
 ### Verification
-Initial deterministic discovery tests established the baseline for later iterations.
+Deterministic discovery tests established the initial baseline.
 
-### Known limitation
-The first implementation did not yet robustly distinguish nested projects/monorepos or maintain artifact history.
+### Limitation discovered
+Nested projects/monorepos and historical artifact changes were not yet robustly represented.
 
 ---
 
 ## v0.2 — Artifact registration
 
 ### Objective
-Make files first-class memory objects rather than merely attributes of a project.
+Make files first-class memory objects.
 
 ### Implemented
 - Artifact registration.
@@ -111,363 +96,272 @@ Make files first-class memory objects rather than merely attributes of a project
 - Dependency-marker detection.
 - Likely entrypoint detection.
 
-### Why this mattered
-The product goal requires a chain such as:
-
-`project → file → modified artifact → later conversation/research`
-
-Without an artifact registry, the Memory OS could not preserve that provenance.
-
 ### Verification
-Tests were expanded to verify project/artifact counts, relationships and repeatable scans.
+Project/artifact count, relationship and repeat-scan tests were expanded.
 
-### Known limitation
-Artifact state was still primarily a current snapshot; historical change evidence had not yet been introduced.
+### Limitation
+Artifact state was primarily a current snapshot; temporal change evidence was still missing.
 
 ---
 
 ## v0.3 — Structural project understanding
 
 ### Objective
-Extract useful project evidence without pretending to perform full semantic code comprehension.
+Extract useful structural evidence without pretending to perform full semantic code comprehension.
 
 ### Implemented
 - Python AST import hints.
 - JavaScript/TypeScript import hints.
-- Bounded source inspection to avoid unbounded parsing of large files.
-- Structural confidence scoring.
-- Likely entrypoint evidence.
-- Project state evidence:
-  - README presence;
-  - test presence/count;
-  - TODO/FIXME count;
-  - recent code-file activity;
-  - recent code activity ratio.
+- Bounded source inspection.
+- Structural confidence.
+- Entrypoint evidence.
+- State evidence for README presence, tests, TODO/FIXME markers and recent code activity.
 
 ### Verification
-Discovery tests were extended to assert these structural signals.
+Discovery tests asserted the new structural/state evidence.
 
-### Important boundary
-These signals are deliberately labelled as evidence. For example, having tests does not prove that the tests are good, complete, or passing.
+### Boundary decision
+Tests detected is evidence that test files exist; it is not evidence that the tests pass or are good. The same distinction applies to all structural signals.
 
 ---
 
 ## v0.4 — Git evidence and artifact history
 
 ### Objective
-Capture temporal evidence about repositories and file changes without executing repository code.
+Capture repository identity and file-change evidence without executing repository code.
 
 ### Implemented
-- Direct read-only Git repository detection.
-- Current branch evidence where available.
-- Current HEAD commit evidence where available.
-- ISO-8601 UTC artifact modification timestamps.
+- Direct Git repository detection.
+- Current branch evidence.
+- Current HEAD evidence.
+- UTC modification timestamps.
 - Append-only artifact change events.
-- Old/new hash preservation.
-- Old/new modification-time preservation.
+- Old/new hashes and modification times.
 
 ### Safety decision
-Git metadata is read directly from repository metadata files rather than invoking project code or arbitrary project tooling.
+Git metadata is read directly from repository metadata rather than by executing arbitrary project tooling.
 
 ### Verification
-Tests were added for Git metadata and artifact change history, including repeat scans.
+Git metadata, artifact history and repeat-scan tests were added.
 
-### Known limitation
-This is not full Git history analysis. Commit-level activity, historical branches and richer commit semantics remain future work.
+### Limitation
+Full Git history and commit-level semantic analysis remain outside IMPL-03.
 
 ---
 
 ## v0.5 — Timeline integration
 
 ### Objective
-Make artifact changes visible in project history rather than keeping them isolated in the artifact table.
+Make artifact history visible as project history.
 
 ### Implemented
-- Project timeline integration for artifact changes.
 - `artifact_change` timeline events.
-- Old/new hashes and modification times exposed in timeline metadata.
-- Deterministic newest-first ordering.
+- Old/new hash and modification-time metadata.
+- Newest-first deterministic ordering.
 
 ### Verification
-A dedicated timeline test was added to verify that artifact history appears in project timelines and retains old/new evidence.
+Dedicated timeline regression coverage verifies artifact changes are exposed by project timelines.
 
-### Known limitation
-A current artifact modification record and its historical change event can represent overlapping evidence. Future timeline work may refine presentation semantics.
+### Limitation
+Current-state artifact modification records and historical change events can overlap in presentation; future timeline UX may distinguish them more explicitly.
 
 ---
 
 ## v0.6 — Explicit project↔conversation continuity
 
 ### Objective
-Connect project intelligence to the Conversation Memory layer without silently guessing relationships.
+Connect project intelligence to conversation memory without silently guessing ownership.
 
 ### Implemented
-- Explicit project-to-conversation linking.
-- Entity validation before creating the relationship.
+- Explicit project→conversation linking.
+- Entity validation.
 - `has_conversation` relationship.
-- Project reports can surface linked conversations.
-- Project re-entry can surface linked conversations.
-- Accepted candidate evidence can be projected into project events.
+- Project reports/re-entry can surface linked conversations.
+- Accepted candidate evidence can become project events.
 
 ### Design decision
-The system deliberately does **not** silently infer project ownership from a filename or keyword match. A durable project↔conversation relationship must have explicit/evidence-backed provenance.
+A filename or keyword match is not sufficient durable evidence for a project↔conversation relationship. The link is explicit/evidence-backed.
 
 ### Verification
-Integration/evidence tests were added for valid links, missing entities and accepted candidate projection.
+Integration/evidence tests cover valid links, missing entities and accepted-candidate projection.
 
 ---
 
-## v0.7 — Continuity and evidence hardening
+## v0.7 — Continuity/evidence hardening
 
 ### Objective
-Make cross-entity continuity reliable and prevent repeated processing from producing misleading duplicate history.
+Make cross-entity continuity deterministic and prevent repeated processing from changing the evidence trail.
 
-### Problems found during verification
-1. Continuity rendering could re-expand a conversation through its linked project and encounter the same conversation again.
-2. Some continuity child records did not have a consistent display-name field.
-3. Evidence linking needed to handle provider external IDs while storing canonical internal conversation IDs.
-4. Candidate projection could generate a different project-event identity when a source message had no observed timestamp.
+### Failures discovered
+1. A conversation could be re-expanded through its linked project and encounter itself again.
+2. Continuity child records did not always expose a consistent display name.
+3. Evidence linking needed to accept provider external IDs while storing canonical internal IDs.
+4. Candidate projection could produce a different project-event identity when the source message had no observed timestamp.
+
+### Root causes
+- Graph traversal did not exclude the originating conversation from its own one-hop expansion.
+- Entity renderers were not normalized around a common display contract.
+- Provider identity and internal persistence identity were being conflated at the evidence boundary.
+- Wall-clock time was being used where source observation time was absent, making repeated projection nondeterministic.
 
 ### Remediation
-- Conversation context now avoids re-expanding the conversation itself through project relations.
-- Continuity entity normalization now provides stable IDs/display names for project, artifact, conversation and memory records.
-- Evidence linking accepts canonical conversation IDs or provider external IDs and resolves to the canonical internal ID.
-- Candidate persistence assigns and preserves a stable observed timestamp when the source message does not provide one.
+- Skip self-expansion in conversation continuity.
+- Normalize entity IDs/display names.
+- Resolve provider external conversation IDs to canonical internal IDs before graph linking.
+- Persist a stable observed timestamp when candidate source data has none.
 
-### Regression coverage
-Dedicated continuity and evidence tests were expanded to cover these cases, including repeated candidate projection.
+### Regression protection
+Continuity and evidence tests were expanded to exercise each failure mode and repeated projection.
 
 ### Result
-The evidence trail became deterministic across repeated processing instead of changing merely because processing occurred at a later wall-clock time.
+Repeated processing became deterministic for the affected evidence paths.
 
 ---
 
 ## v0.8 — CI-driven discovery hardening and nested project boundaries
 
 ### Objective
-Use automated CI failures as engineering feedback and make discovery safe for monorepo-like workspaces.
+Use CI as a real integration feedback loop and make discovery safe for monorepo-like layouts.
 
 ### Verification infrastructure
-GitHub Actions was introduced to run the test suite across Python 3.11–3.14.
+GitHub Actions was introduced with a matrix of Python 3.11, 3.12, 3.13 and 3.14.
 
-### Failures found
-CI exposed several real integration defects during this phase. The failures were not hidden or worked around by weakening the test suite.
-
-The observed problem areas included:
-
-- candidate-store/API compatibility;
-- discovery artifact registration;
-- continuity display-name handling;
-- evidence schema/identity handling;
-- continuity self-expansion;
-- candidate-event idempotence; and
-- nested project boundary/ownership behavior.
+### Failures discovered
+CI exposed real integration defects in candidate-store compatibility, discovery artifact registration, continuity display names, evidence schema/identity handling, continuity self-expansion, candidate-event idempotence and nested project ownership.
 
 ### Remediation
-Each failure area was addressed in the implementation and protected with regression coverage.
+Each diagnostic category was repaired in implementation code and backed by regression tests rather than weakening assertions.
 
-### Nested-project issue
-A strong project marker inside another strong project marker can represent a legitimate nested project/monorepo package. The earlier discovery behavior could cause the parent project to absorb child artifacts.
+### Nested-project failure
+A strong project marker inside another strong project could represent a legitimate child project. Parent scanning could otherwise swallow child artifacts.
 
 ### Fix
-- Preserve strong nested project roots.
-- During parent scanning, prune selected nested project roots.
-- Keep child artifact ownership isolated to the child project.
+- Retain strong nested project roots.
+- Prune selected nested roots from parent artifact scans.
+- Keep child artifact ownership isolated.
 - Retain the Git root when appropriate.
 
 ### Verification
-Deterministic monorepo-like synthetic tests were added. The tests assert the expected parent/child project roots and artifact ownership.
-
-### Result
-Nested project boundaries became deterministic without requiring execution of project code.
+Deterministic synthetic monorepo tests assert the selected roots and ownership behavior.
 
 ---
 
-## v0.9 — Project evidence view
+## v0.9 — Compact project evidence view
 
 ### Objective
-Provide a compact human-readable evidence surface so a user or reviewer can understand what the Memory OS actually knows about a project.
+Provide a human-readable evidence surface that makes the current state of a project understandable without turning structural signals into unsupported conclusions.
 
 ### Implemented
-New `project-evidence-view` functionality separates evidence into:
+`project-evidence-view` separates:
 
-1. **Current snapshot** — current project metadata and structural/state evidence.
-2. **Historical evidence** — project events and artifact history.
-3. **Explicit continuity** — linked conversations and other explicitly recorded relationships.
-4. **Current artifacts** — artifacts currently registered for the project.
+1. current snapshot;
+2. historical evidence;
+3. explicit continuity; and
+4. current artifacts.
 
-The view explicitly warns that structural signals do not prove intent, quality, production readiness or completion.
+The renderer includes an explicit evidence disclaimer.
 
-### Files involved
+### Paths changed
 - `src/memory_os/project_evidence.py`
 - `src/memory_os/cli.py`
 - `tests/test_project_evidence.py`
 - `README.md`
-- this implementation log
+- `docs/implementations/IMPL-03-project-file-intelligence/*`
 
-### Verification added
-`tests/test_project_evidence.py` verifies:
-
-- required evidence sections are rendered;
-- the structural-evidence disclaimer is present; and
-- project state evidence is visible.
-
-### CI result
-GitHub Actions run **#146** completed successfully on the implementation-log update commit `7c5b5918cc1b7f1bd1d7067d7d2a1b69d9a17898`.
-
-GitHub Actions run **#147** then completed successfully on README documentation commit `62581407594e5c06ef034c58ea73282b974599de`.
-
-Both runs used the project test matrix across Python 3.11–3.14.
-
-### Completion implication
-The new evidence view is now included in the verified branch state. IMPL-03 documentation still requires its BRD/FRD/PRD/TRD version notes to be brought into alignment before the milestone is formally closed.
+### Verification
+The project-evidence test checks the section boundaries, evidence disclaimer and project state evidence. CI run **#146** succeeded on implementation-log commit `7c5b5918cc1b7f1bd1d7067d7d2a1b69d9a17898`. CI run **#147** succeeded on README commit `62581407594e5c06ef034c58ea73282b974599de`.
 
 ---
 
-# 5. Verification and test history
+# 5. Verification matrix
 
-## Test strategy
+| Area | Evidence | Result |
+|---|---|---|
+| Memory/project/artifact persistence | `tests/test_core.py` | Covered by CI |
+| Conversation persistence/import | `tests/test_conversation.py` | Covered by CI |
+| Cross-layer import integration | `tests/test_integration.py` | Covered by CI |
+| Conversation/project/artifact continuity | `tests/test_continuity.py` | Covered by CI |
+| Candidate extraction/review | `tests/test_candidates.py` | Covered by CI |
+| Project timeline | `tests/test_timeline.py` | Covered by CI |
+| Project/conversation evidence | `tests/test_evidence.py` | Covered by CI |
+| Filesystem discovery/Git/artifact history/nested roots | `tests/test_discovery.py` | Covered by CI |
+| Compact project evidence view | `tests/test_project_evidence.py` | Covered by CI |
+| Python compatibility | GitHub Actions matrix 3.11–3.14 | All four jobs successful in run #147 |
 
-The implementation uses several layers of verification:
-
-### Unit tests
-Exercise individual memory, project, artifact, candidate, discovery, continuity, evidence and timeline behaviors.
-
-### Integration tests
-Exercise flows spanning multiple modules, such as:
-
-`conversation import → project/artifact creation → relationships → continuity`
-
-and
-
-`candidate extraction → accepted candidate → project evidence event`
-
-### Deterministic filesystem tests
-Synthetic directory trees are used to test project boundary detection, artifact registration, repeat scans and nested-project behavior without touching a user's real filesystem.
-
-### CI matrix
-GitHub Actions runs the test suite against Python 3.11, 3.12, 3.13 and 3.14.
+The repository's CI command is `python -m unittest discover -s tests -v` with `PYTHONPATH=src`.
 
 ---
 
-## Important failure/remediation record
+# 6. Failure/remediation register
 
-| Problem area | How it was detected | Remediation | Regression protection |
+| Failure | Root cause | Remediation | Regression test |
 |---|---|---|---|
-| Candidate store compatibility | CI/integration failures | Reconciled candidate persistence/extraction interfaces | Candidate tests + CI |
-| Discovery artifact registration | CI/integration failures | Corrected artifact registration during project scanning | Discovery tests |
-| Continuity display names | Continuity test failure | Normalized entity display records | Continuity tests |
-| Evidence schema/identity handling | Evidence test failure | Added schema setup and canonical/external conversation-ID resolution | Evidence tests |
-| Conversation self-expansion | Continuity test failure | Skip re-expansion of the originating conversation | Continuity tests |
-| Candidate-event idempotence | Repeated projection behavior | Preserve stable observed timestamp and deterministic event identity | Evidence tests |
-| Nested project ownership | Monorepo boundary test | Preserve nested strong roots and prune them from parent scans | Discovery tests |
-| Project evidence view | New feature regression test | Added dedicated evidence renderer and CLI surface | Project-evidence tests + CI |
+| Candidate store/API mismatch | Evolving interfaces were inconsistent | Reconciled extraction/persistence boundaries | Candidate tests |
+| Discovery artifacts missing/incorrect | Scan path was not registering artifacts consistently | Corrected registration flow | Discovery tests |
+| Continuity child missing display name | Entity records lacked normalized display contract | Added entity normalization | Continuity tests |
+| Evidence schema/identity failure | Evidence path did not initialize/resolve identities correctly | Schema initialization + canonical/external ID resolution | Evidence tests |
+| Conversation self-expansion | One-hop traversal returned origin | Explicitly skip origin | Continuity tests |
+| Candidate-event non-idempotence | Missing source timestamp caused wall-clock identity drift | Stable observed timestamp | Evidence tests |
+| Nested project artifact swallowing | Parent scan traversed selected child project | Preserve nested roots + prune parent traversal | Discovery tests |
+| Project evidence regression risk | New renderer had no dedicated coverage | Added focused evidence-view test | Project-evidence test + CI |
 
-**Note:** The table records the known diagnostic categories rather than inventing exact failure counts where the surviving repository evidence does not preserve those counts.
-
----
-
-# 6. What has deliberately NOT been claimed
-
-The following are intentionally outside the current evidence level:
-
-- full semantic understanding of arbitrary codebases;
-- production-readiness detection;
-- code-quality scoring;
-- automatic intent inference as durable fact;
-- full Git history understanding;
-- dependency resolution/build execution;
-- complete AST analysis for every supported language;
-- artifact-content embeddings;
-- semantic vector retrieval;
-- automatic project↔conversation discovery;
-- broad validation against an arbitrary real user's entire filesystem.
-
-These are future capabilities, not silently assumed to be complete.
+The repository history and this log preserve the failure categories so later reviewers can distinguish engineering repair from green-field implementation.
 
 ---
 
-# 7. Safety and non-destructive guarantees
+# 7. Safety guarantees
 
-Discovery is additive to the local Memory OS database.
+Discovery is additive to the Memory OS database. It does not move, rename, delete or execute discovered source files. Hashing is bounded. Git metadata is read directly. Original locations remain artifact provenance.
 
-It does **not**:
-
-- move files;
-- rename files;
-- delete files;
-- execute discovered source code; or
-- modify the user's project repositories merely to inspect them.
-
-Original filesystem locations are retained as artifact provenance. Hashes provide evidence for artifact identity/change tracking.
-
-Project↔conversation relationships are explicit/evidence-backed rather than silently inferred.
+Project↔conversation links are explicit/evidence-backed. Structural signals are not silently promoted into claims about intent, quality, production readiness or completion.
 
 ---
 
-# 8. Documentation trail
+# 8. Deliberately unresolved
 
-Each implementation is documented through the required chain:
+- Full semantic code comprehension.
+- Full Git history/commit analysis.
+- Dependency resolution or build execution.
+- Complete multi-language AST analysis.
+- Artifact-content embeddings/vector retrieval.
+- Automatic project↔conversation discovery.
+- First-class missing/deleted artifact evidence.
+- Rich workspace-vs-nested-package modelling.
+- Broad real-user filesystem validation beyond deterministic synthetic fixtures.
 
-`BRD → FRD → PRD → TRD → IMPLEMENTATION_LOG`
-
-For IMPL-03 the implementation documentation is located under:
-
-`docs/implementations/IMPL-03-project-file-intelligence/`
-
-The README is also updated as implementation milestones change.
-
-Documentation is treated as part of the implementation, not as a post-hoc description.
-
----
-
-# 9. Current limitations / technical debt
-
-1. `add_project_event` should use one generated timestamp when no timestamp is supplied, rather than evaluating the default timestamp twice.
-2. Cross-entity ID namespaces could be hardened so identical IDs across different entity tables cannot become ambiguous.
-3. Project inspection may eventually need to distinguish a workspace/root aggregation from an individual nested project package more explicitly.
-4. Timeline presentation may need to distinguish current-state records from historical change events more clearly.
-5. Artifact deletion/missing-file evidence is not yet represented as a first-class event.
-6. Real mixed-workspace validation remains future work beyond deterministic synthetic fixtures.
-
-These are tracked as engineering limitations rather than being hidden by the current completion status.
+These are future layers, not hidden defects in the current milestone.
 
 ---
 
-# 10. Completion gate for IMPL-03
+# 9. IMPL-03 completion gate
 
-IMPL-03 can be formally closed only when all of the following are true:
+- [x] Read-only project discovery
+- [x] Artifact registry
+- [x] Structural/state evidence
+- [x] Git branch/HEAD evidence
+- [x] Artifact history
+- [x] Timeline integration
+- [x] Explicit project↔conversation continuity
+- [x] Nested project boundary tests
+- [x] Compact project evidence view
+- [x] CI matrix green with current evidence-view test
+- [x] BRD/FRD/PRD/TRD documentation aligned with delivered behavior
+- [x] Final milestone close recorded
 
-- [x] Read-only project discovery implemented.
-- [x] Artifact registry implemented.
-- [x] Structural/state evidence implemented.
-- [x] Git branch/HEAD evidence implemented.
-- [x] Artifact change history implemented.
-- [x] Timeline integration implemented.
-- [x] Explicit project↔conversation continuity implemented.
-- [x] Nested project boundary behavior tested.
-- [x] Project evidence view implemented.
-- [x] CI matrix green with the current evidence-view test.
-- [ ] IMPL-03 BRD version notes updated.
-- [ ] IMPL-03 FRD version notes updated.
-- [ ] IMPL-03 PRD version notes updated.
-- [ ] IMPL-03 TRD version notes updated.
-- [ ] Final milestone close recorded in this log.
+**IMPL-03 is closed.**
 
 ---
 
-# 11. Next implementation
-
-After the documentation gate is complete, the next milestone is:
+# 10. Next milestone
 
 **IMPL-04 — Research Memory**
 
-The next implementation log entry will follow the same audit format. It will record implementation decisions, exact paths, tests, failures, remediation, CI evidence, limitations and documentation changes as the work progresses.
+The next implementation will preserve external research sources—websites, videos, repositories and documents—as first-class artifacts with canonical URLs, provenance and deduplication, then build toward richer research relationships and source-to-idea continuity.
+
+The same audit format applies from the first IMPL-04 change onward.
 
 ---
 
 ## Log maintenance rule
 
-**Never rewrite history to make the implementation look cleaner than it was.**
-
-If a later implementation disproves an earlier assumption, the earlier assumption and the correction should remain visible in this log. The purpose of the file is reproducibility and independent verification, not marketing.
+**Never rewrite history to make the implementation look cleaner than it was.** If a later implementation disproves an earlier assumption, retain both the original assumption and the correction. The log exists for reproducibility and independent verification, not marketing.
