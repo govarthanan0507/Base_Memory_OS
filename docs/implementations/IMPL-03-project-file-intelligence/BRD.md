@@ -1,6 +1,6 @@
 # IMPL-03 BRD — Project & File Intelligence
 
-**Version:** 0.1
+**Version:** 0.2
 
 ## Why this milestone exists
 
@@ -16,15 +16,16 @@ A read-only project and artifact intelligence layer that creates a semantic over
 
 ## Scope
 
-- project-root discovery
-- project boundary detection
+- project-root discovery and boundary heuristics
 - file/artifact registration
 - code-file classification
 - lightweight project structure analysis
 - entrypoint and dependency-marker detection
+- bounded project-state evidence such as test presence, TODO/FIXME counts and recent code activity
 - project metadata and confidence
 - repeatable, non-destructive rescans
-- tests and documentation
+- project↔conversation evidence links
+- tests and versioned documentation
 
 ## Non-goals
 
@@ -32,9 +33,10 @@ A read-only project and artifact intelligence layer that creates a semantic over
 - deleting files
 - executing discovered project code
 - claiming semantic understanding from filenames alone
+- automatically declaring a project production-ready from structural evidence
 - automatic cleanup of the filesystem
 - destructive repository operations
 
 ## Success criteria
 
-Given a workspace containing multiple projects, Memory OS can discover likely project roots, register their files as artifacts, attach artifacts to projects, and provide evidence-backed project metadata without modifying source files.
+Given a workspace containing multiple projects, Memory OS can discover likely project roots, avoid a workspace-level README swallowing a stronger child project, register files as artifacts, attach artifacts to projects, and provide evidence-backed project metadata without modifying source files. Structural state evidence must remain explicitly evidence rather than a definitive project-status claim.
