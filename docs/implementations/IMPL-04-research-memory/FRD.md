@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.7
+**Version:** 0.8
 
 ## Functional requirements
 
@@ -36,6 +36,11 @@
 - FR-30 Semantic extraction shall perform no network I/O, LLM inference or downloaded-code execution.
 - FR-31 The complete provenance chain shall be testable from source registration through snapshot attachment, structural observations and semantic candidates.
 - FR-32 Provenance-chain tests shall use platform-independent temporary storage rather than hard-coded filesystem locations.
+- FR-33 Persisted research candidate identity shall be deterministic from candidate kind and normalized value.
+- FR-34 Repeated candidates across different source snapshots shall converge on one candidate record.
+- FR-35 Each distinct candidate/source-snapshot/evidence occurrence shall remain separately queryable as candidate evidence.
+- FR-36 Re-persisting the same candidate evidence shall be idempotent.
+- FR-37 Candidate review shall support candidate → accepted/rejected without automatically creating durable memory.
 
 ## Acceptance behavior
 
@@ -50,5 +55,7 @@ The ingestion operation provides the complete deterministic-to-optional boundary
 Structural extraction operates only on already-captured evidence. Repeated identical content produces identical observations, and every observation result can be traced back to the snapshot hash. Malformed links are ignored rather than converted into invented source identities.
 
 Semantic candidate extraction operates after structural evidence inspection. A repository candidate is grounded in an observed GitHub/GitLab URL; tool and idea candidates are produced only by explicit conservative textual patterns; title/headings become topic candidates rather than authoritative summaries. Candidates retain exact evidence provenance and a review status. They are not written to durable memory automatically.
+
+Persistent candidate storage uses kind + normalized value as the identity boundary. Two different sources may therefore point to one candidate while their source URLs, snapshot hashes, timestamps and evidence text remain distinct evidence rows. Reviewing a candidate changes only its research-candidate status; it does not promote it to the general durable-memory table.
 
 The provenance-chain regression must demonstrate that a candidate emitted at the end of the chain retains the same source URL, snapshot hash and capture timestamp that were attached to the persisted artifact.
