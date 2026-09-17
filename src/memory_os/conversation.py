@@ -5,17 +5,15 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from .core import MemoryStore, utc_now
+from .core import MemoryStore
 
 
 def conversation_id(source: str, external_id: str | None, title: str) -> str:
-    key = "\x1f".join((source, external_id or title))
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
+    return hashlib.sha256("\x1f".join((source, external_id or title)).encode()).hexdigest()[:24]
 
 
 def message_id(conversation: str, sequence: int, role: str, content: str, external_id: str | None = None) -> str:
-    key = "\x1f".join((conversation, external_id or str(sequence), role, content))
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
+    return hashlib.sha256("\x1f".join((conversation, external_id or str(sequence), role, content)).encode()).hexdigest()[:24]
 
 
 @dataclass(frozen=True)
@@ -26,6 +24,7 @@ class Message:
     observed_at: str | None = None
     external_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    message_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,43 +44,26 @@ class Conversation:
 
 
 def ensure_schema(store: MemoryStore) -> None:
-    store.conn.executescript(
-        """
+    store.conn.executescript("""
         CREATE TABLE IF NOT EXISTS conversations (
-            conversation_id TEXT PRIMARY KEY,
-            source TEXT NOT NULL,
-            external_id TEXT,
-            title TEXT NOT NULL,
-            started_at TEXT,
-            ended_at TEXT,
-            source_location TEXT,
+            conversation_id TEXT PRIMARY KEY, source TEXT NOT NULL, external_id TEXT,
+            title TEXT NOT NULL, started_at TEXT, ended_at TEXT, source_location TEXT,
             metadata_json TEXT NOT NULL
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_conversations_source_external
-            ON conversations(source, external_id)
-            WHERE external_id IS NOT NULL;
+            ON conversations(source, external_id) WHERE external_id IS NOT NULL;
         CREATE TABLE IF NOT EXISTS messages (
-            message_id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL,
-            sequence INTEGER NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            observed_at TEXT,
-            external_id TEXT,
-            metadata_json TEXT NOT NULL,
-            UNIQUE(conversation_id, sequence, role, content)
+            message_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, sequence INTEGER NOT NULL,
+            role TEXT NOT NULL, content TEXT NOT NULL, observed_at TEXT, external_id TEXT,
+            metadata_json TEXT NOT NULL, UNIQUE(conversation_id, sequence, role, content)
         );
-        CREATE INDEX IF NOT EXISTS idx_messages_conversation
-            ON messages(conversation_id, sequence);
-        """
-    )
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, sequence);
+    """)
     store.conn.commit()
 
 
 def _merge_json(existing_json: str | None, incoming: dict[str, Any]) -> str:
-    existing = json.loads(existing_json or "{}")
-    merged = {**existing, **incoming}
-    return json.dumps(merged, sort_keys=True)
+    return json.dumps({**json.loads(existing_json or "{}"), **incoming}, sort_keys=True)
 
 
 def persist_conversation(store: MemoryStore, conversation: Conversation) -> str:
@@ -89,57 +71,27 @@ def persist_conversation(store: MemoryStore, conversation: Conversation) -> str:
     cid = conversation.conversation_id
     store.conn.execute("BEGIN")
     try:
-        existing = store.conn.execute(
-            "SELECT * FROM conversations WHERE conversation_id = ?", (cid,)
-        ).fetchone()
+        existing = store.conn.execute("SELECT * FROM conversations WHERE conversation_id=?", (cid,)).fetchone()
         if existing is None:
-            store.conn.execute(
-                """INSERT INTO conversations
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (cid, conversation.source, conversation.external_id, conversation.title,
-                 conversation.started_at, conversation.ended_at, conversation.source_location,
-                 json.dumps(conversation.metadata, sort_keys=True)),
-            )
+            store.conn.execute("INSERT INTO conversations VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (cid, conversation.source, conversation.external_id, conversation.title, conversation.started_at,
+                 conversation.ended_at, conversation.source_location, json.dumps(conversation.metadata, sort_keys=True)))
         else:
-            # Re-imports may discover richer provenance later. Preserve old values
-            # when the new source is silent, while merging newly supplied metadata.
-            store.conn.execute(
-                """UPDATE conversations SET title=?, started_at=?, ended_at=?,
-                   source_location=?, metadata_json=? WHERE conversation_id=?""",
-                (
-                    conversation.title,
-                    conversation.started_at or existing["started_at"],
-                    conversation.ended_at or existing["ended_at"],
-                    conversation.source_location or existing["source_location"],
-                    _merge_json(existing["metadata_json"], conversation.metadata),
-                    cid,
-                ),
-            )
+            store.conn.execute("UPDATE conversations SET title=?, started_at=?, ended_at=?, source_location=?, metadata_json=? WHERE conversation_id=?",
+                (conversation.title, conversation.started_at or existing["started_at"], conversation.ended_at or existing["ended_at"],
+                 conversation.source_location or existing["source_location"], _merge_json(existing["metadata_json"], conversation.metadata), cid))
         for msg in conversation.messages:
             if not msg.role.strip() or not msg.content.strip():
                 raise ValueError("message role and content must be non-empty")
-            mid = message_id(cid, msg.sequence, msg.role, msg.content, msg.external_id)
-            existing_msg = store.conn.execute(
-                "SELECT * FROM messages WHERE message_id=?", (mid,)
-            ).fetchone()
+            mid = msg.message_id or message_id(cid, msg.sequence, msg.role, msg.content, msg.external_id)
+            existing_msg = store.conn.execute("SELECT * FROM messages WHERE message_id=?", (mid,)).fetchone()
             if existing_msg is None:
-                store.conn.execute(
-                    """INSERT INTO messages
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (mid, cid, msg.sequence, msg.role, msg.content, msg.observed_at,
-                     msg.external_id, json.dumps(msg.metadata, sort_keys=True)),
-                )
+                store.conn.execute("INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (mid, cid, msg.sequence, msg.role, msg.content, msg.observed_at, msg.external_id, json.dumps(msg.metadata, sort_keys=True)))
             else:
-                store.conn.execute(
-                    """UPDATE messages SET observed_at=?, external_id=?, metadata_json=?
-                       WHERE message_id=?""",
-                    (
-                        msg.observed_at or existing_msg["observed_at"],
-                        msg.external_id or existing_msg["external_id"],
-                        _merge_json(existing_msg["metadata_json"], msg.metadata),
-                        mid,
-                    ),
-                )
+                store.conn.execute("UPDATE messages SET observed_at=?, external_id=?, metadata_json=? WHERE message_id=?",
+                    (msg.observed_at or existing_msg["observed_at"], msg.external_id or existing_msg["external_id"],
+                     _merge_json(existing_msg["metadata_json"], msg.metadata), mid))
         store.conn.commit()
     except Exception:
         store.conn.rollback()
@@ -149,9 +101,7 @@ def persist_conversation(store: MemoryStore, conversation: Conversation) -> str:
 
 def get_conversation(store: MemoryStore, cid: str) -> dict[str, Any]:
     ensure_schema(store)
-    row = store.conn.execute(
-        "SELECT * FROM conversations WHERE conversation_id = ?", (cid,)
-    ).fetchone()
+    row = store.conn.execute("SELECT * FROM conversations WHERE conversation_id=?", (cid,)).fetchone()
     if row is None:
         raise KeyError(f"conversation not found: {cid}")
     return dict(row)
@@ -161,17 +111,12 @@ def list_conversations(store: MemoryStore, limit: int = 50) -> list[dict[str, An
     ensure_schema(store)
     if limit < 1:
         return []
-    return [dict(row) for row in store.conn.execute(
-        "SELECT * FROM conversations ORDER BY COALESCE(ended_at, started_at, rowid) DESC LIMIT ?",
-        (limit,),
-    )]
+    return [dict(row) for row in store.conn.execute("SELECT * FROM conversations ORDER BY COALESCE(ended_at, started_at, rowid) DESC LIMIT ?", (limit,))]
 
 
 def get_messages(store: MemoryStore, cid: str) -> list[dict[str, Any]]:
     ensure_schema(store)
-    return [dict(row) for row in store.conn.execute(
-        "SELECT * FROM messages WHERE conversation_id=? ORDER BY sequence", (cid,)
-    )]
+    return [dict(row) for row in store.conn.execute("SELECT * FROM messages WHERE conversation_id=? ORDER BY sequence", (cid,))]
 
 
 __all__ = ["Conversation", "Message", "ensure_schema", "get_conversation", "get_messages", "list_conversations", "message_id", "persist_conversation"]
