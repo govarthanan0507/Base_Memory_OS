@@ -34,7 +34,8 @@ def conversation_context(store: MemoryStore, conversation_id: str, limit: int = 
     for item in linked:
         if item["kind"]=="project":
             for child in _linked_entities(store,item["id"],limit):
-                if child["id"] not in seen: child["via_project"]=item["id"]; seen.add(child["id"]); expanded.append(child)
+                if child["id"] == conversation_id or child["id"] in seen: continue
+                child["via_project"]=item["id"]; seen.add(child["id"]); expanded.append(child)
     return {"conversation":dict(row),"messages":messages,"related":expanded}
 
 def project_context(store: MemoryStore, project_id: str, limit: int = 50):
