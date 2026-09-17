@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .candidates import persist_candidates
 from .continuity import render_project_reentry_brief, render_reentry_brief
+from .continuity_os import render_continuity_dashboard
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
@@ -22,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--db", default=".memory-os/memory.db", help="SQLite database path")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="Initialize the memory database")
+    sub.add_parser("dashboard", help="Render the compact work-continuity dashboard")
     add = sub.add_parser("add-memory", help="Store a durable memory")
     add.add_argument("content")
     add.add_argument("--type", default="episodic")
@@ -146,6 +148,8 @@ def main() -> int:
     try:
         if args.command == "init":
             print(f"Initialized {Path(args.db).resolve()}")
+        elif args.command == "dashboard":
+            print(render_continuity_dashboard(store))
         elif args.command == "add-memory":
             print(store.add_memory(Memory(args.content, args.type, args.source, args.confidence)))
         elif args.command == "search":
