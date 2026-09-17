@@ -4,19 +4,21 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-04 — Research Memory v0.3 — source identity, bounded evidence capture, URL metadata hints**
+**IMPL-04 — Research Memory v0.4 — explicit source-ingestion pipeline**
 
 IMPL-03 established read-only filesystem/project intelligence, artifact registration and history, project timelines, explicit project↔conversation continuity, deterministic nested-project boundaries, and an evidence-labelled project view.
 
 IMPL-04 now provides a provider-neutral research-source boundary that normalizes external HTTP(S) URLs, conservatively classifies common research sources, preserves provenance, and registers sources as deduplicated artifacts using deterministic IDs.
 
-The content layer can explicitly capture bounded text responses, hash them with SHA-256, persist them as separate JSON evidence snapshots, and attach snapshot provenance to the source artifact. A separate URL-only metadata adapter now extracts safe provider/resource identity hints for YouTube, `youtu.be`, GitHub and GitLab without making network calls.
+The content layer can explicitly capture bounded text responses, hash them with SHA-256, persist them as separate JSON evidence snapshots, and attach snapshot provenance to the source artifact. A separate URL-only metadata adapter extracts safe provider/resource identity hints for YouTube, `youtu.be`, GitHub and GitLab without making network calls.
+
+The v0.4 ingestion pipeline now composes those stages explicitly: register the source, derive URL metadata, optionally capture bounded evidence, persist the snapshot, and attach its provenance. Network I/O happens only when `capture=True` is requested.
 
 These layers deliberately preserve the distinction between **URL observation, captured evidence, verification and semantic understanding**.
 
 ## Verification status
 
-The source-identity cycle is verified by GitHub Actions run #164 across Python 3.11–3.14. The v0.2/v0.3 source-capture and metadata test-bearing commits have been pushed to `main`; their CI result is still pending and will be recorded in the IMPL-04 implementation log before these slices are called green.
+The source-identity cycle is verified by GitHub Actions run #164 across Python 3.11–3.14. The v0.2/v0.3/v0.4 source-capture, metadata and pipeline test-bearing commits have been pushed to `main`; CI verification of these latest commits is still pending and will be recorded in the IMPL-04 implementation log before the slices are called green.
 
 ## Status
 
@@ -32,8 +34,9 @@ The source-identity cycle is verified by GitHub Actions run #164 across Python 3
 - **Canonical identity boundary:** provider-facing conversation external IDs are resolved to stable internal conversation IDs before graph linking.
 - **Compact project evidence:** snapshot/history/continuity/artifact view implemented with explicit evidence semantics.
 - **IMPL-04 research identity:** URL normalization, source classification, deterministic research artifact identity and duplicate-safe registration implemented and CI-verified.
-- **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented; CI verification pending.
-- **IMPL-04 URL metadata:** provider-neutral YouTube/GitHub/GitLab identity hints implemented without network access; CI verification pending.
+- **IMPL-04 source capture:** bounded text capture, SHA-256 snapshot identity, local JSON evidence persistence and idempotent provenance attachment implemented; latest CI verification pending.
+- **IMPL-04 URL metadata:** provider-neutral YouTube/GitHub/GitLab identity hints implemented without network access; latest CI verification pending.
+- **IMPL-04 ingestion pipeline:** explicit register → metadata → optional capture → snapshot → provenance flow implemented with offline integration tests; latest CI verification pending.
 
 ## IMPL-04 evidence boundary
 
@@ -47,6 +50,8 @@ SOURCE CAPTURED         ← optional, bounded
 SNAPSHOT HASHED
       ↓
 SNAPSHOT PRESERVED
+      ↓
+PROVENANCE ATTACHED
       ↓
 SOURCE VERIFIED        ← not implied
       ↓
