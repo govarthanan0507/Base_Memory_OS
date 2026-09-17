@@ -16,8 +16,6 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** establish deterministic external-source identity before attempting content understanding.
 
-**Implementation paths:** `src/memory_os/research.py`, `tests/test_research.py`, IMPL-04 BRD/FRD/PRD/TRD.
-
 **Implementation:** HTTP(S) URL normalization, conservative source classification, deterministic research artifact IDs, duplicate-safe artifact registration and provenance metadata.
 
 **Failure:** `ResearchSource.source_type` initially defaulted to `website`, so normal construction bypassed automatic URL classification.
@@ -29,8 +27,6 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 **Regression test:** YouTube registration without an explicit type must produce `video`.
 
 **Verification:** GitHub Actions run #164 (`35180978862`) passed on Python 3.11–3.14.
-
-**Known limitations:** classification is heuristic; no external content capture or semantic interpretation.
 
 ---
 
@@ -54,15 +50,13 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** add deterministic provider-neutral metadata extraction from URL structure only.
 
-**Implementation:** added `extract_source_metadata()` recognizing YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository paths; unknown sites return canonical URL/host only.
+**Implementation:** `extract_source_metadata()` recognizes YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository paths; unknown sites return canonical URL/host only.
 
 **Failure:** one documentation update initially used a stale blob SHA and GitHub returned HTTP 409.
 
 **Root cause:** the file had changed after the earlier fetch.
 
 **Fix:** re-fetched the current file and retried with its current SHA.
-
-**Verification:** implementation/test commits were accepted; CI result was to be recorded when available.
 
 ---
 
@@ -106,13 +100,18 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Implementation:** `src/memory_os/research_extract.py` and `tests/test_research_extract.py`. Relative links are resolved and normalized; duplicate observations preserve first-observed order; snapshot hash/timestamp remain provenance.
 
-**Test failure:** CI run #200 (`35183355300`) failed in Python 3.12 because the test treated `::bad` as malformed even though URL resolution legitimately treats it as a relative reference.
+**Test failure:** CI run #200 (`35183355300`) failed in Python 3.12. The test used `::bad` as a malformed URL, but `urljoin()` correctly treated it as a relative reference.
 
-**Root cause:** incorrect regression fixture, not a production defect.
+**Root cause:** the fixture was not actually malformed for URL resolution. A later corrected fixture used `https://[bad`, which exposed a second, real robustness gap: Python's `urljoin()` can itself raise `ValueError` for malformed absolute references.
 
-**Fix:** replaced it with `https://[bad`. Remediation commit: `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
+**Remediation sequence:**
+1. Test fixture corrected in `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
+2. Subsequent CI run #211 (`35184049758`) on the current head still failed because production extraction did not catch the `ValueError` raised by `urljoin()`.
+3. Production code hardened in `ba8204e920136c0aee975dec8ab9d5b07e41ae0c` to ignore `TypeError`/`ValueError` from malformed link resolution/normalization.
 
-**Current verification:** no workflow run is currently associated with the remediation commit through the connected GitHub workflow lookup, so this is not claimed as CI-green. The failure remains recorded.
+**Regression protection:** positive relative-link coverage remains; malformed absolute links now exercise the production exception boundary instead of relying only on the fixture to avoid the exception.
+
+**Current verification:** the hardened production fix is pushed and a new CI run is expected. No green result is claimed yet.
 
 ---
 
@@ -127,10 +126,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 **Exact implementation paths:**
 - `src/memory_os/research_semantic.py`
 - `tests/test_research_semantic.py`
-- `docs/implementations/IMPL-04-research-memory/BRD.md`
-- `docs/implementations/IMPL-04-research-memory/FRD.md`
-- `docs/implementations/IMPL-04-research-memory/PRD.md`
-- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- IMPL-04 BRD/FRD/PRD/TRD
 - `README.md`
 - this log
 
@@ -140,7 +136,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Tests added:** repository/tool/idea/topic extraction with provenance; duplicate repository reference deduplication; unknown-source behavior that does not invent provider metadata.
 
-**Failure status:** no production failure observed in this cycle. CI verification of the new head is pending; no green result is claimed until GitHub Actions reports it.
+**Failure status:** no production failure observed during implementation. CI verification of the current head remains pending because the malformed-link fix was pushed after the first semantic-cycle head.
 
 **Known limitations:** textual patterns are intentionally narrow and heuristic. This is a staging boundary for future semantic/model-assisted extraction, not a complete natural-language understanding engine. The candidate layer currently does not persist candidates into the graph.
 
@@ -151,6 +147,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 - FRD v0.6 `d7eba1594b5bd976aa0dbc477c9e9232b713b8ce`
 - PRD v0.6 `845c65f9aabadeda8f3a6351fd9d741975f6f300`
 - TRD v0.6 `c12fa4a42022bc77b324a9df2fba0b50093bb2e5`
+- malformed-link hardening `ba8204e920136c0aee975dec8ab9d5b07e41ae0c`
 
 ---
 
@@ -163,8 +160,8 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
 | v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
 | v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
-| v0.6 | Structural extraction test rejected valid relative URL | Incorrect test fixture, not production defect | Replace with genuinely malformed absolute URL | Positive relative-link test + malformed-link regression |
-| v0.7 | None observed | — | — | Provenance, deduplication and unknown-source tests |
+| v0.6 | Structural extraction test initially used a valid relative URL as malformed; corrected fixture then exposed uncaught `urljoin()` ValueError | Test fixture ambiguity followed by production exception gap | Correct fixture + catch URL resolution/normalization errors | Positive relative-link test + malformed-link regression |
+| v0.7 | None observed during implementation | — | — | Provenance, deduplication and unknown-source tests |
 
 ## 11. Current evidence boundary
 
@@ -190,4 +187,4 @@ DURABLE MEMORY / VERIFIED CLAIM ── not automatic
 
 ## 12. Next step
 
-Verify the newest test-bearing head in CI. Then add a mixed-source integration path that demonstrates source → snapshot → observations → candidates, with repository/tool/entity records remaining deduplicated and traceable to exact evidence before moving toward model-assisted semantic extraction.
+Verify the hardened head in CI. Then add a mixed-source integration path demonstrating source → snapshot → observations → candidates, with repository/tool/entity records remaining deduplicated and traceable to exact evidence before moving toward model-assisted semantic extraction.
