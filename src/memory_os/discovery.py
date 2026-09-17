@@ -1,136 +1,119 @@
 from __future__ import annotations
-
-import ast
-import hashlib
-import os
-import re
+import ast, hashlib, os, re
 from datetime import datetime, timezone
 from pathlib import Path
-
 from .core import Artifact, MemoryStore, Project
+PROJECT_MARKERS={"pyproject.toml","package.json","Cargo.toml","go.mod","requirements.txt","Pipfile","poetry.lock","composer.json","pom.xml","build.gradle","CMakeLists.txt","README.md",".git"}
+STRONG_PROJECT_MARKERS=PROJECT_MARKERS-{"README.md"}
+DEPENDENCY_MARKERS=PROJECT_MARKERS-{"README.md",".git","CMakeLists.txt"}
+IGNORED_DIRS={".git",".venv","venv","node_modules","__pycache__",".mypy_cache",".pytest_cache","dist","build"}
+CODE_EXTENSIONS={".py",".js",".ts",".tsx",".jsx",".java",".go",".rs",".cpp",".c",".cs",".rb",".php",".swift",".kt"}
+MAX_HASH_BYTES=20*1024*1024; MAX_ANALYSIS_BYTES=512*1024
+ENTRYPOINT_NAMES={"main.py","app.py","server.py","cli.py","index.js","index.ts","main.go","main.rs","Program.cs"}
+TEST_DIR_NAMES={"test","tests","spec","specs"}; TEST_FILE_RE=re.compile(r"(^test_.*\.(py|js|ts|tsx|jsx)$|.*(_test|\.test|\.spec)\.(py|js|ts|tsx|jsx)$)",re.I); TODO_RE=re.compile(r"\b(TODO|FIXME)\b",re.I)
 
-PROJECT_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle", "CMakeLists.txt", "README.md", ".git"}
-STRONG_PROJECT_MARKERS = PROJECT_MARKERS - {"README.md"}
-DEPENDENCY_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle"}
-IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build"}
-CODE_EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".cpp", ".c", ".cs", ".rb", ".php", ".swift", ".kt"}
-MAX_HASH_BYTES = 20 * 1024 * 1024
-MAX_ANALYSIS_BYTES = 512 * 1024
-ENTRYPOINT_NAMES = {"main.py", "app.py", "server.py", "cli.py", "index.js", "index.ts", "main.go", "main.rs", "Program.cs"}
-TEST_DIR_NAMES = {"test", "tests", "spec", "specs"}
-TEST_FILE_RE = re.compile(r"(^test_.*\.(py|js|ts|tsx|jsx)$|.*(_test|\.test|\.spec)\.(py|js|ts|tsx|jsx)$)", re.I)
-TODO_RE = re.compile(r"\b(TODO|FIXME)\b", re.I)
-
-def file_hash(path: Path, chunk_size: int = 1024 * 1024) -> str:
-    digest = hashlib.sha256()
+def file_hash(path:Path,chunk_size:int=1024*1024)->str:
+    digest=hashlib.sha256()
     with path.open("rb") as fh:
-        while chunk := fh.read(chunk_size): digest.update(chunk)
+        while chunk:=fh.read(chunk_size): digest.update(chunk)
     return digest.hexdigest()
 
-def _git_evidence(root: Path) -> dict[str, str | bool]:
-    git_dir = root / ".git"
-    if not git_dir.is_dir(): return {"is_git_repository": False}
-    evidence: dict[str, str | bool] = {"is_git_repository": True}
+def _git_evidence(root:Path):
+    gd=root/".git"
+    if not gd.is_dir(): return {"is_git_repository":False}
+    e={"is_git_repository":True}
     try:
-        head = (git_dir / "HEAD").read_text(encoding="utf-8", errors="replace").strip()
+        head=(gd/"HEAD").read_text(encoding="utf-8",errors="replace").strip()
         if head.startswith("ref: "):
-            ref = head[5:].strip()
-            evidence["git_branch"] = ref.removeprefix("refs/heads/")
-            ref_path = git_dir / ref
-            if ref_path.is_file(): evidence["git_head"] = ref_path.read_text(encoding="ascii", errors="replace").strip()
+            ref=head[5:].strip(); e["git_branch"]=ref.removeprefix("refs/heads/"); rp=gd/ref
+            if rp.is_file(): e["git_head"]=rp.read_text(encoding="ascii",errors="replace").strip()
             else:
-                packed = git_dir / "packed-refs"
+                packed=gd/"packed-refs"
                 if packed.is_file():
-                    for line in packed.read_text(encoding="ascii", errors="replace").splitlines():
-                        if line and not line.startswith("#") and not line.startswith("^"):
-                            commit, packed_ref = line.split(" ", 1)
-                            if packed_ref.strip() == ref: evidence["git_head"] = commit.strip(); break
-        elif head:
-            evidence["git_head"] = head; evidence["git_head_state"] = "detached"
-    except OSError: evidence["git_metadata_readable"] = False
-    return evidence
+                    for line in packed.read_text(encoding="ascii",errors="replace").splitlines():
+                        if line and not line.startswith(("#","^")):
+                            commit,pr=line.split(" ",1)
+                            if pr.strip()==ref: e["git_head"]=commit.strip(); break
+        elif head: e.update(git_head=head,git_head_state="detached")
+    except OSError: e["git_metadata_readable"]=False
+    return e
 
-def likely_project_roots(root: Path) -> list[Path]:
-    root = root.resolve(); candidates = []
-    for current, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith(".")]
-        current_path = Path(current); markers = set(files) | ({".git"} if (current_path / ".git").is_dir() else set())
-        if markers & PROJECT_MARKERS:
-            strong = bool(markers & STRONG_PROJECT_MARKERS); has_code = any(Path(n).suffix.lower() in CODE_EXTENSIONS for n in files)
-            if strong or has_code: candidates.append((current_path, strong))
-    candidates.sort(key=lambda item: (len(item[0].parts), str(item[0]))); strong_roots = [p for p, strong in candidates if strong]; selected = []
-    for candidate, _ in candidates:
-        if any(candidate in strong_root.parents for strong_root in strong_roots): continue
+def likely_project_roots(root:Path)->list[Path]:
+    root=root.resolve(); candidates=[]
+    for current,dirs,files in os.walk(root):
+        dirs[:]=[d for d in dirs if d not in IGNORED_DIRS and not d.startswith(".")]
+        p=Path(current); markers=set(files)|({".git"} if (p/".git").is_dir() else set()); has_code=any(Path(n).suffix.lower() in CODE_EXTENSIONS for n in files)
+        if markers&PROJECT_MARKERS or has_code:
+            strong=bool(markers&STRONG_PROJECT_MARKERS)
+            if strong or has_code: candidates.append((p,strong))
+    candidates.sort(key=lambda x:(len(x[0].parts),str(x[0]))); strong=[p for p,s in candidates if s]; selected=[]
+    for candidate,_ in candidates:
+        if any(candidate in s.parents for s in strong): continue
         if not any(parent in candidate.parents for parent in selected): selected.append(candidate)
-    if not selected and (root / ".git").is_dir(): selected.append(root)
+    if not selected and (root/".git").is_dir(): selected.append(root)
     return selected
 
-def _import_hints(path: Path) -> list[str]:
+def _import_hints(path:Path):
     try:
-        if path.suffix.lower() != ".py" or path.stat().st_size > MAX_ANALYSIS_BYTES: return []
-        tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, SyntaxError, UnicodeError): return []
-    imports = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import): imports.extend(a.name.split(".")[0] for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module: imports.append(node.module.split(".")[0])
-    return sorted(set(imports))[:20]
+        if path.suffix.lower()!=".py" or path.stat().st_size>MAX_ANALYSIS_BYTES:return []
+        tree=ast.parse(path.read_text(encoding="utf-8",errors="replace"))
+    except (OSError,SyntaxError,UnicodeError):return []
+    out=[]
+    for n in ast.walk(tree):
+        if isinstance(n,ast.Import):out.extend(a.name.split(".")[0] for a in n.names)
+        elif isinstance(n,ast.ImportFrom) and n.module:out.append(n.module.split(".")[0])
+    return sorted(set(out))[:20]
 
-def _text_import_hints(path: Path) -> list[str]:
+def _text_import_hints(path:Path):
     try:
-        if path.suffix.lower() not in {".js", ".ts", ".tsx", ".jsx"} or path.stat().st_size > MAX_ANALYSIS_BYTES: return []
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError: return []
-    return sorted({x.split("/")[0] for x in re.findall(r'''(?:from|require\()\s*["']([^"']+)''', text)})[:20]
+        if path.suffix.lower() not in {".js",".ts",".tsx",".jsx"} or path.stat().st_size>MAX_ANALYSIS_BYTES:return []
+        text=path.read_text(encoding="utf-8",errors="replace")
+    except OSError:return []
+    return sorted({x.split("/")[0] for x in re.findall(r'''(?:from|require\()\s*["']([^"']+)''',text)})[:20]
 
-def _iso_mtime(path: Path, stat: os.stat_result) -> str: return datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
-
-def _state_evidence(root: Path, files: list[Path], code_files: list[Path]) -> dict[str, object]:
-    test_files = []; todo_count = 0; recent = 0; now = datetime.now(timezone.utc).timestamp()
-    for path in code_files:
+def _state_evidence(root,code_files):
+    tests=[];todo=0;recent=0;now=datetime.now(timezone.utc).timestamp()
+    for p in code_files:
         try:
-            if path.parent.name.lower() in TEST_DIR_NAMES or TEST_FILE_RE.match(path.name): test_files.append(path)
-            stat = path.stat(); recent += now - stat.st_mtime <= 30 * 24 * 60 * 60
-            if stat.st_size <= MAX_ANALYSIS_BYTES: todo_count += len(TODO_RE.findall(path.read_text(encoding="utf-8", errors="replace")))
-        except (OSError, UnicodeError): continue
-    return {"readme_present": (root / "README.md").is_file(), "has_tests": bool(test_files), "test_file_count": len(test_files), "todo_fixme_count": todo_count, "recent_code_file_count_30d": recent, "code_activity_ratio_30d": round(recent / len(code_files), 3) if code_files else 0.0}
+            if p.parent.name.lower() in TEST_DIR_NAMES or TEST_FILE_RE.match(p.name):tests.append(p)
+            st=p.stat();recent+=now-st.st_mtime<=30*86400
+            if st.st_size<=MAX_ANALYSIS_BYTES:todo+=len(TODO_RE.findall(p.read_text(encoding="utf-8",errors="replace")))
+        except (OSError,UnicodeError):pass
+    return {"readme_present":(root/"README.md").is_file(),"has_tests":bool(tests),"test_file_count":len(tests),"todo_fixme_count":todo,"recent_code_file_count_30d":recent,"code_activity_ratio_30d":round(recent/len(code_files),3) if code_files else 0.0}
 
-def inspect_project(root: Path) -> Project:
-    files=[]; code_files=[]; markers=[]; entrypoints=[]; imports=set(); total_bytes=0
-    for current, dirs, names in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+def inspect_project(root:Path)->Project:
+    files=[];code=[];markers=[];entry=[];imports=set();total=0
+    for current,dirs,names in os.walk(root):
+        dirs[:]=[d for d in dirs if d not in IGNORED_DIRS]
         for name in names:
-            path=Path(current)/name
-            try: stat=path.stat()
-            except OSError: continue
-            files.append(path); total_bytes += stat.st_size
-            if path.suffix.lower() in CODE_EXTENSIONS:
-                code_files.append(path)
-                if name in ENTRYPOINT_NAMES: entrypoints.append(str(path.relative_to(root)))
-                imports.update(_import_hints(path)); imports.update(_text_import_hints(path))
-            if name in PROJECT_MARKERS: markers.append(name)
-    summary=""; readme=root/"README.md"
+            p=Path(current)/name
+            try:st=p.stat()
+            except OSError:continue
+            files.append(p);total+=st.st_size
+            if p.suffix.lower() in CODE_EXTENSIONS:
+                code.append(p)
+                if name in ENTRYPOINT_NAMES:entry.append(str(p.relative_to(root)))
+                imports.update(_import_hints(p));imports.update(_text_import_hints(p))
+            if name in PROJECT_MARKERS:markers.append(name)
+    summary="";readme=root/"README.md"
     if readme.is_file():
-        try: summary=next((line.lstrip("# ").strip() for line in readme.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip() and not line.startswith("```")), "")
-        except OSError: pass
-    git=_git_evidence(root); state=_state_evidence(root, files, code_files)
-    metadata={"file_count":len(files),"code_file_count":len(code_files),"total_bytes":total_bytes,"markers":sorted(set(markers)),"dependency_markers":sorted(set(markers)&DEPENDENCY_MARKERS),"likely_entrypoints":sorted(set(entrypoints)),"import_hints":sorted(imports),"git":git,"state_evidence":state,"discovery_version":"0.4.0"}
-    evidence=.45+(.15 if code_files else 0)+(.1 if summary else 0)+(.1 if len(markers)>1 else 0)+(.05 if entrypoints else 0)+(.05 if set(markers)&DEPENDENCY_MARKERS else 0)
-    return Project(name=summary or root.name.replace("_"," ").replace("-"," ").strip().title(), root=str(root), status="PARTIALLY BUILT" if code_files else "DISCOVERED", confidence=min(.95,evidence), summary=summary, metadata=metadata)
+        try:summary=next((x.lstrip("# ").strip() for x in readme.read_text(encoding="utf-8",errors="replace").splitlines() if x.strip() and not x.startswith("```")),"")
+        except OSError:pass
+    metadata={"file_count":len(files),"code_file_count":len(code),"total_bytes":total,"markers":sorted(set(markers)),"dependency_markers":sorted(set(markers)&DEPENDENCY_MARKERS),"likely_entrypoints":sorted(set(entry)),"import_hints":sorted(imports),"git":_git_evidence(root),"state_evidence":_state_evidence(root,code),"discovery_version":"0.4.0"}
+    confidence=.45+(.15 if code else 0)+(.1 if summary else 0)+(.1 if len(markers)>1 else 0)+(.05 if entry else 0)+(.05 if set(markers)&DEPENDENCY_MARKERS else 0)
+    return Project(summary or root.name.replace("_"," ").replace("-"," ").strip().title(),str(root),"PARTIALLY BUILT" if code else "DISCOVERED",min(.95,confidence),summary=summary,metadata=metadata)
 
-def scan_workspace(root: str | Path, store: MemoryStore) -> list[Project]:
+def scan_workspace(root:str|Path,store:MemoryStore)->list[Project]:
     projects=[]
-    for project_root in likely_project_roots(Path(root)):
-        project=inspect_project(project_root); project_id=store.add_project(project); projects.append(project)
-        for current, dirs, names in os.walk(project_root):
-            dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+    for pr in likely_project_roots(Path(root)):
+        project=inspect_project(pr);pid=store.add_project(project);projects.append(project)
+        for current,dirs,names in os.walk(pr):
+            dirs[:]=[d for d in dirs if d not in IGNORED_DIRS]
             for name in names:
-                path=Path(current)/name
-                try: stat=path.stat()
-                except OSError: continue
-                modified_at=_iso_mtime(path,stat)
-                aid=store.add_artifact(Artifact(name=name,artifact_type="code" if path.suffix.lower() in CODE_EXTENSIONS else "file",location=str(path.resolve()),content_hash=file_hash(path) if stat.st_size<=MAX_HASH_BYTES else None,modified_at=modified_at,metadata={"project_root":str(project_root.resolve())}))
-                store.relate(project_id,"contains",aid)
+                p=Path(current)/name
+                try:st=p.stat()
+                except OSError:continue
+                aid=store.add_artifact(Artifact(name,"code" if p.suffix.lower() in CODE_EXTENSIONS else "file",str(p.resolve()),content_hash=file_hash(p) if st.st_size<=MAX_HASH_BYTES else None,modified_at=datetime.fromtimestamp(st.st_mtime,tz=timezone.utc).isoformat(),metadata={"project_root":str(pr.resolve())}));store.relate(pid,"contains",aid)
     return projects
 
 __all__=["inspect_project","likely_project_roots","scan_workspace","file_hash"]
