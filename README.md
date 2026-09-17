@@ -4,32 +4,36 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.6 — CI repair**
+**IMPL-03 — Project & File Intelligence v0.7 — integration repair pass**
 
-IMPL-01 established the SQLite memory core. IMPL-02 established normalized conversations, provider-neutral imports, continuity, candidate review, project evidence, timelines and re-entry briefs. IMPL-03 adds read-only filesystem/project intelligence.
+IMPL-03 now has read-only filesystem discovery, project/artifact registration, structural and state evidence, Git identity, historical artifact changes, project timelines, and explicit project↔conversation continuity. This cycle also used the repository's real GitHub Actions execution as a diagnostic loop rather than assuming local correctness.
 
-The project layer discovers likely roots, inspects structure without executing code, registers files as artifacts, preserves bounded hashes and modification evidence, records Git identity, tracks historical artifact changes, and connects projects with conversations through explicit evidence. Project timelines expose historical artifact changes.
-
-A GitHub Actions test run exposed integration regressions that were previously hidden because local runtime verification had not been available. This iteration repairs the discovered compatibility boundaries: message identity is now accepted as an explicit field while retaining deterministic fallback identity; candidate extraction accepts both domain `Message` objects and persisted message dictionaries; explicit project/conversation linking initializes its conversation schema; continuity recognizes memory entities; JSON imports preserve richer supplied source provenance; Git ref parsing correctly strips the full `refs/heads/` prefix; timeline tests distinguish initial discovery events from later change events.
+The CI run exposed integration mismatches between domain objects and persisted records. The repair pass now restores explicit message identity compatibility, lets candidate extraction consume both `Message` objects and persisted dictionaries, initializes conversation schema before explicit evidence linking, recognizes memory entities in continuity traversal, preserves richer JSON source provenance, corrects Git `refs/heads/*` parsing, distinguishes discovered artifacts from later artifact changes in timeline tests, and renders timeline event types explicitly.
 
 Discovery remains **read-only**: no source files are moved, renamed, deleted or executed.
+
+## Verification status
+
+GitHub Actions is now exercising **38 tests** across Python 3.11–3.14. The first diagnostic run failed with 3 failures and 11 errors; the subsequent repair run reduced this to 2 failures and 6 errors, confirming that several compatibility defects were fixed while also exposing the remaining issues. The current branch therefore must not yet be called green.
+
+Remaining repair targets are centered on test fixture/entity semantics and discovery artifact-root behavior. CI remains the source of runtime truth for the completion gate.
 
 ## Status
 
 - **IMPL-01 foundation:** implemented.
-- **IMPL-02 conversation normalization:** implemented; runtime verification is now being actively exercised through CI.
+- **IMPL-02 conversation normalization:** implemented; runtime verification is actively exercised through CI.
 - **Conversation continuity:** implemented for conversation ↔ project ↔ artifact relationships and re-entry briefs.
-- **Candidate extraction/review:** implemented with provenance-preserving candidates and explicit review.
-- **Project activity timeline:** implemented from explicit events, relationships and artifact evidence, including historical changes.
-- **IMPL-03 project discovery:** implemented as a read-only structural intelligence layer.
-- **IMPL-03 state evidence:** implemented with tests, TODO/FIXME and recent activity signals.
-- **IMPL-03 root hardening:** strong-marker precedence implemented.
+- **Candidate extraction/review:** implemented with explicit review and provenance.
+- **Project activity timeline:** implemented from project events, relationships and artifact evidence, including historical changes.
+- **IMPL-03 project discovery:** implemented as a non-executing structural intelligence layer.
+- **IMPL-03 state evidence:** tests, TODO/FIXME and recent activity signals implemented.
+- **IMPL-03 root hardening:** strong-marker precedence and code-only project discovery implemented.
 - **IMPL-03 artifact history:** append-only discovery/change events implemented.
-- **CI repair:** first full GitHub Actions run exposed 3 failures and 11 errors across 38 tests; the principal compatibility causes identified in that run have been patched in this iteration. A new CI run is required before claiming green verification.
+- **CI repair pass:** active; multiple real integration defects have been identified and patched.
 
 ## IMPL-03 completion gate
 
-Before IMPL-03 is declared complete, the repaired implementation must pass CI and discovery must be exercised against representative mixed workspaces/monorepo-like layouts. Structural signals remain evidence rather than claims of code quality, production readiness or project intent.
+IMPL-03 is not complete until the remaining CI failures are resolved, the full matrix is green, and discovery is validated against representative mixed workspaces/monorepo-like layouts. Structural signals remain evidence rather than claims of code quality, production readiness or project intent.
 
 ## Roadmap
 
