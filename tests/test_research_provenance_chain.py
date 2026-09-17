@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from memory_os.core import MemoryStore
+from memory_os.research import ResearchSource
 from memory_os.research_content import SourceSnapshot, attach_snapshot_metadata, save_snapshot
 from memory_os.research_extract import extract_observations
 from memory_os.research_pipeline import ingest_research_source
@@ -14,8 +15,7 @@ class ResearchProvenanceChainTests(unittest.TestCase):
         store = MemoryStore(":memory:")
         result = ingest_research_source(
             store,
-            "https://example.org/article",
-            title="Research article",
+            ResearchSource("https://example.org/article", title="Research article"),
             capture=False,
         )
         snapshot = SourceSnapshot(
