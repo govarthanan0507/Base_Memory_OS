@@ -4,7 +4,7 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.3**
+**IMPL-03 — Project & File Intelligence v0.4**
 
 IMPL-01 established the SQLite memory core, provenance, projects, artifacts, typed relationships and lexical retrieval. IMPL-02 established normalized conversations, provider-neutral imports, continuity, candidate review, project evidence, timelines and re-entry briefs.
 
@@ -14,9 +14,13 @@ Discovery is deliberately **read-only**. It does not move, rename, delete or exe
 
 Project inspection is intentionally evidence-based rather than pretending to understand an entire codebase. Current structural evidence includes file/code counts, dependency markers, README-derived summaries, likely entrypoints, bounded content hashes, lightweight Python/JavaScript/TypeScript import hints, and Git branch/HEAD metadata read directly from `.git` files.
 
+Project-state evidence now also records README presence, test presence/count, bounded TODO/FIXME counts, and recent code-file activity. These are signals for later continuity/re-entry reasoning, not claims of code quality, production readiness, or project intent.
+
+Root detection now gives stronger project markers (Git/build/dependency manifests) precedence over README-only workspace boundaries, reducing the chance that a workspace README hides an actual child project. A Git root remains discoverable when it is itself the project boundary.
+
 Rescans are repeatable: projects are keyed by root location and artifacts by file location. Artifact state changes are preserved as append-only `artifact_events`, so a later scan can show that a file changed instead of silently erasing its prior observed hash/mtime.
 
-Project/conversation continuity is now explicit rather than inferred silently. A known project and conversation can be linked with evidence, and accepted candidate projection also creates that continuity link. `reentry-project` and `project-report` can therefore expose the conversation trail alongside project artifacts and events.
+Project/conversation continuity is explicit rather than inferred silently. A known project and conversation can be linked with evidence, and accepted candidate projection also creates that continuity link. `reentry-project` and `project-report` can therefore expose the conversation trail alongside project artifacts and events.
 
 A deterministic `project-report` CLI command exposes the stored project evidence, registered artifacts, linked conversations and project events without executing project code.
 
@@ -40,6 +44,7 @@ A deterministic `project-report` CLI command exposes the stored project evidence
 16. Do not execute discovered code as part of project intelligence.
 17. Treat observed Git metadata as evidence, not as a claim about project health or quality.
 18. Make project↔conversation continuity explicit when evidence supports the relationship.
+19. Keep structural project-state signals separate from definitive project-status judgments.
 
 ## Status
 
@@ -52,6 +57,8 @@ A deterministic `project-report` CLI command exposes the stored project evidence
 - **IMPL-03 project discovery:** implemented as a read-only structural intelligence layer.
 - **IMPL-03 artifact registry linkage:** implemented with bounded SHA-256 hashes and project containment relationships.
 - **IMPL-03 structural evidence:** dependency markers, likely entrypoints, lightweight import hints and Git branch/HEAD metadata implemented.
+- **IMPL-03 state evidence:** tests, TODO/FIXME and recent code activity signals implemented with bounded analysis.
+- **IMPL-03 root hardening:** strong-marker precedence and workspace README false-positive protection implemented.
 - **IMPL-03 artifact change history:** implemented with append-only artifact events and idempotent repeated scans.
 - **IMPL-03 project report:** implemented as a deterministic CLI view of stored structural evidence.
 - **IMPL-03 project↔conversation continuity:** explicit linking and candidate-backed linking implemented; re-entry/report surfaces linked conversations.
@@ -59,7 +66,7 @@ A deterministic `project-report` CLI command exposes the stored project evidence
 
 ## IMPL-03 completion gate
 
-Before IMPL-03 is declared complete, discovery must be exercised against representative real workspaces, project-state evidence must be hardened, and the project-root heuristics must be reviewed for workspace-level false positives. Git evidence, artifact-change tracking, project reports and explicit project-to-conversation continuity are now implemented. Discovery must remain non-destructive.
+Before IMPL-03 is declared complete, discovery must be exercised against representative real workspaces and runtime verification must be obtained. Project-state evidence and root heuristics now have an initial hardened layer, but still require validation against mixed workspace layouts and monorepos. Git evidence, artifact-change tracking, project reports and explicit project-to-conversation continuity are implemented. Discovery must remain non-destructive.
 
 ## Roadmap
 
