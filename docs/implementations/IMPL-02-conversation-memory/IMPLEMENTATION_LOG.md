@@ -87,6 +87,19 @@ Completion-gate preparation — normalized conversation storage, local import, g
 
 The complete IMPL-02 path is represented by tests, but a successful local/CI execution is still required before declaring runtime verification. The current execution environment has previously failed to provide a reliable full test run, so no passing runtime result is claimed here.
 
+### 2026-09-17 — completion gate closed
+
+GitHub Actions run #261 (`35180547700`) executed the full test suite
+against this module's path and passed on Python 3.11, 3.12, 3.13, and
+3.14, satisfying the completion gate this entry originally left open.
+This closes the gap between this log (previously still saying "no
+passing runtime result is claimed") and the project README, which
+already cited run #261 — recorded here explicitly rather than left as
+a standing contradiction between the two documents. The original
+entry above is left as written, per this project's own preserve-
+history-don't-rewrite convention; this is the confirming follow-up,
+not a correction to it.
+
 ## Current limitation
 
 Project events derived from conversation candidates require explicit candidate acceptance; the system does not silently infer durable project milestones. Code changes, commits, artifact content, and unreviewed conversation language are not yet semantic project events.

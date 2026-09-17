@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .candidates import persist_candidates
@@ -12,15 +13,25 @@ from .core import Memory, MemoryStore
 from .discovery import scan_workspace
 from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
+from .logging_setup import configure_logging, get_logger
 from .project_evidence import render_project_evidence
 from .research import ResearchSource
 from .research_pipeline import ingest_research_source
 from .timeline import render_project_timeline
 
+logger = get_logger(__name__)
+
+# Exceptions expected from normal invalid-input use (bad ID, missing file,
+# malformed import payload) — caught with a clean one-line message rather
+# than a raw traceback. Anything else is logged with a full traceback and
+# re-raised: an unexpected bug should still be loud, not swallowed.
+_EXPECTED_ERRORS = (KeyError, FileNotFoundError, ValueError)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memory-os", description="Base Memory OS CLI")
     parser.add_argument("--db", default=".memory-os/memory.db", help="SQLite database path")
+    parser.add_argument("--verbose", action="store_true", help="Also log DEBUG-level detail and echo log lines to stderr")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init", help="Initialize the memory database")
     sub.add_parser("dashboard", help="Render the compact work-continuity dashboard")
@@ -142,70 +153,97 @@ def _research_command(store: MemoryStore, args: argparse.Namespace) -> None:
     }, indent=2, sort_keys=True))
 
 
+def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
+    if args.command == "init":
+        logger.info("init: database at %s", Path(args.db).resolve())
+        print(f"Initialized {Path(args.db).resolve()}")
+    elif args.command == "dashboard":
+        print(render_continuity_dashboard(store))
+    elif args.command == "add-memory":
+        memory_id = store.add_memory(Memory(args.content, args.type, args.source, args.confidence))
+        logger.info("add-memory: stored %s (type=%s, source=%s)", memory_id, args.type, args.source)
+        print(memory_id)
+    elif args.command == "search":
+        for row in store.search(args.query, args.limit):
+            print(f"[{row['memory_type']}] {row['content']} ({row['source']})")
+    elif args.command == "scan-projects":
+        projects = scan_workspace(args.root, store)
+        logger.info("scan-projects: discovered %d project(s) under %s", len(projects), args.root)
+        for project in projects:
+            git = project.metadata.get("git", {})
+            suffix = f" — git:{git.get('git_branch')}@{git.get('git_head')}" if git.get("is_git_repository") else ""
+            print(f"{project.status:17} {project.name} — {project.root}{suffix}")
+        print(f"Discovered {len(projects)} project(s). No files were moved or deleted.")
+    elif args.command == "project-report":
+        print(_project_report(store, args.project_id, args.limit))
+    elif args.command == "project-evidence-view":
+        print(render_project_evidence(store, args.project_id, args.limit))
+    elif args.command == "import-conversation":
+        fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
+        conversation_id = import_json(store, args.path) if fmt == "json" else import_markdown(store, args.path, source=args.source, title=args.title)
+        logger.info("import-conversation: imported %s from %s (format=%s)", conversation_id, args.path, fmt)
+        print(conversation_id)
+    elif args.command == "import-chatgpt-export":
+        count = import_chatgpt_export(store, args.path)
+        logger.info("import-chatgpt-export: imported %d conversation(s) from %s", count, args.path)
+        print(f"Imported {count} conversation(s)")
+    elif args.command == "show-conversation":
+        for row in get_messages(store, args.conversation_id):
+            print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
+    elif args.command == "list-conversations":
+        for row in list_conversations(store, args.limit):
+            print(f"{row['conversation_id']}  [{row['source']}] {row['title']}")
+    elif args.command == "relate":
+        store.relate(args.source_id, args.relation, args.target_id)
+        logger.info("relate: %s --%s--> %s", args.source_id, args.relation, args.target_id)
+        print(f"Related {args.source_id} --{args.relation}--> {args.target_id}")
+    elif args.command == "link-project-conversation":
+        result = link_conversation_to_project(store, args.conversation_id, args.project_id)
+        logger.info("link-project-conversation: %s <-> %s", args.conversation_id, args.project_id)
+        print(result)
+    elif args.command == "reentry":
+        print(render_reentry_brief(store, args.conversation_id, args.limit))
+    elif args.command == "reentry-project":
+        print(render_project_reentry_brief(store, args.project_id, args.limit))
+    elif args.command == "timeline-project":
+        print(render_project_timeline(store, args.project_id, args.limit))
+    elif args.command == "extract-candidates":
+        messages = get_messages(store, args.conversation_id)
+        ids = persist_candidates(store, args.conversation_id, messages, project_id=args.project_id)
+        logger.info("extract-candidates: persisted %d candidate(s) for %s", len(ids), args.conversation_id)
+        print(f"Persisted {len(ids)} candidate(s)")
+        for candidate_id in ids:
+            print(candidate_id)
+    elif args.command == "list-candidates":
+        for row in store.list_candidates(args.status, args.limit):
+            print(f"{row['candidate_id']} [{row['status']}] [{row['memory_type']}] {row['content']}")
+    elif args.command == "review-candidate":
+        result = store.review_candidate(args.candidate_id, args.decision)
+        logger.info("review-candidate: %s -> %s", args.candidate_id, args.decision)
+        print(result)
+    elif args.command == "project-evidence":
+        event_ids = record_conversation_candidates_as_project_events(store, args.conversation_id, args.project_id, candidate_ids=args.candidate_ids)
+        logger.info("project-evidence: projected %d event(s) for %s -> %s", len(event_ids), args.conversation_id, args.project_id)
+        print(f"Projected {len(event_ids)} accepted candidate event(s)")
+        for event_id in event_ids:
+            print(event_id)
+    elif args.command in {"add-research-source", "capture-research-source"}:
+        _research_command(store, args)
+
+
 def main() -> int:
     args = build_parser().parse_args()
+    configure_logging(args.db, verbose=args.verbose)
     store = MemoryStore(args.db)
     try:
-        if args.command == "init":
-            print(f"Initialized {Path(args.db).resolve()}")
-        elif args.command == "dashboard":
-            print(render_continuity_dashboard(store))
-        elif args.command == "add-memory":
-            print(store.add_memory(Memory(args.content, args.type, args.source, args.confidence)))
-        elif args.command == "search":
-            for row in store.search(args.query, args.limit):
-                print(f"[{row['memory_type']}] {row['content']} ({row['source']})")
-        elif args.command == "scan-projects":
-            projects = scan_workspace(args.root, store)
-            for project in projects:
-                git = project.metadata.get("git", {})
-                suffix = f" — git:{git.get('git_branch')}@{git.get('git_head')}" if git.get("is_git_repository") else ""
-                print(f"{project.status:17} {project.name} — {project.root}{suffix}")
-            print(f"Discovered {len(projects)} project(s). No files were moved or deleted.")
-        elif args.command == "project-report":
-            print(_project_report(store, args.project_id, args.limit))
-        elif args.command == "project-evidence-view":
-            print(render_project_evidence(store, args.project_id, args.limit))
-        elif args.command == "import-conversation":
-            fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
-            print(import_json(store, args.path) if fmt == "json" else import_markdown(store, args.path, source=args.source, title=args.title))
-        elif args.command == "import-chatgpt-export":
-            print(f"Imported {import_chatgpt_export(store, args.path)} conversation(s)")
-        elif args.command == "show-conversation":
-            for row in get_messages(store, args.conversation_id):
-                print(f"{row['sequence']:04d} [{row['role']}] {row['content']}")
-        elif args.command == "list-conversations":
-            for row in list_conversations(store, args.limit):
-                print(f"{row['conversation_id']}  [{row['source']}] {row['title']}")
-        elif args.command == "relate":
-            store.relate(args.source_id, args.relation, args.target_id)
-            print(f"Related {args.source_id} --{args.relation}--> {args.target_id}")
-        elif args.command == "link-project-conversation":
-            print(link_conversation_to_project(store, args.conversation_id, args.project_id))
-        elif args.command == "reentry":
-            print(render_reentry_brief(store, args.conversation_id, args.limit))
-        elif args.command == "reentry-project":
-            print(render_project_reentry_brief(store, args.project_id, args.limit))
-        elif args.command == "timeline-project":
-            print(render_project_timeline(store, args.project_id, args.limit))
-        elif args.command == "extract-candidates":
-            messages = get_messages(store, args.conversation_id)
-            ids = persist_candidates(store, args.conversation_id, messages, project_id=args.project_id)
-            print(f"Persisted {len(ids)} candidate(s)")
-            for candidate_id in ids:
-                print(candidate_id)
-        elif args.command == "list-candidates":
-            for row in store.list_candidates(args.status, args.limit):
-                print(f"{row['candidate_id']} [{row['status']}] [{row['memory_type']}] {row['content']}")
-        elif args.command == "review-candidate":
-            print(store.review_candidate(args.candidate_id, args.decision))
-        elif args.command == "project-evidence":
-            event_ids = record_conversation_candidates_as_project_events(store, args.conversation_id, args.project_id, candidate_ids=args.candidate_ids)
-            print(f"Projected {len(event_ids)} accepted candidate event(s)")
-            for event_id in event_ids:
-                print(event_id)
-        elif args.command in {"add-research-source", "capture-research-source"}:
-            _research_command(store, args)
+        _dispatch(store, args)
+    except _EXPECTED_ERRORS as exc:
+        logger.warning("command %s failed: %s", args.command, exc, exc_info=True)
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    except Exception:
+        logger.exception("command %s failed with an unexpected error", args.command)
+        raise
     finally:
         store.close()
     return 0
