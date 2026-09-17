@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .conversation import ensure_schema
@@ -81,6 +82,22 @@ def conversation_context(store: MemoryStore, conversation_id: str, limit: int = 
     return {"conversation": dict(row), "messages": messages, "related": expanded}
 
 
+def _open_project_candidates(store: MemoryStore, project_id: str, limit: int) -> list[dict[str, Any]]:
+    """Return candidate memories explicitly tagged with this project in metadata."""
+    rows = store.list_candidates("candidate", limit=max(limit * 3, limit))
+    output = []
+    for row in rows:
+        metadata = json.loads(row["metadata_json"] or "{}")
+        if metadata.get("project_id") != project_id:
+            continue
+        item = dict(row)
+        item["metadata"] = metadata
+        output.append(item)
+        if len(output) >= limit:
+            break
+    return output
+
+
 def project_context(store: MemoryStore, project_id: str, limit: int = 50):
     ensure_schema(store)
     if limit < 1:
@@ -91,14 +108,6 @@ def project_context(store: MemoryStore, project_id: str, limit: int = 50):
     if row is None:
         raise KeyError(f"project not found: {project_id}")
     linked = _linked_entities(store, project_id, limit)
-    candidates = []
-    candidate_rows = store.conn.execute(
-        "SELECT candidate_id, memory_type, content, status, confidence, observed_at "
-        "FROM memory_candidates WHERE project_id=? AND status='candidate' "
-        "ORDER BY observed_at DESC LIMIT ?",
-        (project_id, limit),
-    ).fetchall()
-    candidates.extend(dict(item) for item in candidate_rows)
     events = [
         dict(item)
         for item in store.conn.execute(
@@ -119,7 +128,7 @@ def project_context(store: MemoryStore, project_id: str, limit: int = 50):
         "conversations": conversations,
         "artifacts": [x for x in linked if x["kind"] == "artifact"],
         "memories": [x for x in linked if x["kind"] == "memory"],
-        "open_candidates": candidates,
+        "open_candidates": _open_project_candidates(store, project_id, limit),
         "events": events,
         "latest_conversation": latest_conversation,
     }
