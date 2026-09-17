@@ -19,6 +19,21 @@ class ResearchSourceTests(unittest.TestCase):
         self.assertEqual(classify_url("https://example.org/paper.pdf"), "document")
         self.assertEqual(classify_url("https://example.org/article"), "website")
 
+    def test_registration_uses_url_classification_when_type_is_omitted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "memory.db")
+            try:
+                artifact_id = register_research_source(
+                    store,
+                    ResearchSource("https://www.youtube.com/watch?v=abc", title="A video"),
+                )
+                artifact = store.list_artifacts()[0]
+                self.assertEqual(artifact_id, artifact["artifact_id"])
+                self.assertEqual(artifact["artifact_type"], "video")
+                self.assertIn('"source_type": "video"', artifact["metadata_json"])
+            finally:
+                store.close()
+
     def test_registration_is_deduplicated_by_canonical_url(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = MemoryStore(Path(tmp) / "memory.db")
