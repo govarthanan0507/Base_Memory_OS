@@ -16,10 +16,7 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Objective:** establish deterministic external-source identity before attempting content understanding.
 
-**Implementation paths:**
-- `src/memory_os/research.py`
-- `tests/test_research.py`
-- IMPL-04 BRD/FRD/PRD/TRD
+**Implementation paths:** `src/memory_os/research.py`, `tests/test_research.py`, IMPL-04 BRD/FRD/PRD/TRD.
 
 **Implementation:** HTTP(S) URL normalization, conservative source classification, deterministic research artifact IDs, duplicate-safe artifact registration and provenance metadata.
 
@@ -41,32 +38,13 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Date:** 2026-09-17
 
-**Starting state:** source identity was CI-verified, but registered sources had no preserved content evidence.
-
 **Objective:** add explicit, bounded content capture without turning retrieval into interpretation.
-
-**Exact implementation paths:**
-- `src/memory_os/research_content.py`
-- `tests/test_research_content.py`
-- `docs/implementations/IMPL-04-research-memory/{BRD,FRD,PRD,TRD}.md`
 
 **Implementation:** `SourceSnapshot`, bounded standard-library HTTP capture, timeout and byte limits, charset-aware text decoding, SHA-256 content identity, content-hash-named JSON snapshot persistence and idempotent snapshot provenance attachment to research artifacts.
 
 **Tests:** deterministic hashing, provenance-preserving persistence, idempotent attachment and oversized-response rejection.
 
-**Failure status:** no implementation failure observed in the recorded cycle. Rejected oversized input is intentional test behavior, not a build failure.
-
-**Verification:** the source-capture commits were pushed to `main`; CI verification is to be recorded when the resulting workflow completes.
-
 **Known limitations:** text only; no provider metadata extraction; no semantic parsing; snapshots are filesystem JSON; network capture is explicit.
-
-**Evidence commits:**
-- implementation `c589e128443cf6b084d89e2aa861095473109ed7`
-- tests `e13c0c68fb9b336faf19dfdc0c364cb4a7aeaa05`
-- BRD `30b27a555deefe96e28727d790e4027d03d818ac`
-- FRD `1cab3b3adf488aa91be5142608ce720167e0a0ae`
-- PRD `493d8a9d1721b4e7aaedd855e1abcec4e2e44556`
-- TRD `41402afa03f95eb0ef1e5efac900335ac214dc72`
 
 ---
 
@@ -74,45 +52,17 @@ IMPL-03 established project/file intelligence, artifact history, project timelin
 
 **Date:** 2026-09-17
 
-**Starting state:** bounded capture existed; the system still lacked a clean adapter boundary for identifying provider/resource IDs without making network calls.
-
 **Objective:** add deterministic provider-neutral metadata extraction from URL structure only.
 
-**Exact implementation paths:**
-- `src/memory_os/research_metadata.py`
-- `tests/test_research_metadata.py`
-- `docs/implementations/IMPL-04-research-memory/FRD.md`
-- `docs/implementations/IMPL-04-research-memory/TRD.md`
-- this log
-
-**Implementation:** added `extract_source_metadata()` recognizing:
-- YouTube watch URLs → provider/resource ID/video;
-- YouTube Shorts URLs → provider/resource ID/short;
-- `youtu.be` URLs → provider/resource ID/video;
-- GitHub/GitLab repository paths → provider/owner/repository/repository kind;
-- unknown sites → canonical URL and host only.
-
-The adapter performs no HTTP requests and does not infer titles, authors, view counts, repository contents or other remote facts.
-
-**Tests:** added four tests covering YouTube video identity, YouTube Shorts identity, repository identity and safe unknown-site behavior.
+**Implementation:** added `extract_source_metadata()` recognizing YouTube watch/Shorts, `youtu.be`, GitHub and GitLab repository paths; unknown sites return canonical URL/host only.
 
 **Failure:** one documentation update initially used a stale blob SHA and GitHub returned HTTP 409.
 
-**Root cause:** the file had changed after the earlier fetch, so the optimistic update used an outdated content SHA.
+**Root cause:** the file had changed after the earlier fetch.
 
-**Fix:** re-fetched the current file and retried with its current SHA. The retry succeeded.
+**Fix:** re-fetched the current file and retried with its current SHA.
 
-**Regression protection:** future documentation edits must fetch the latest blob SHA immediately before updating a file that may have changed during the cycle.
-
-**Verification:** implementation and test commits were accepted by GitHub. CI result for the new test-bearing commits is not yet recorded in this log and will be appended when available.
-
-**Known limitations:** URL hints are observations about URL structure; they are not remote metadata verification. Provider support is intentionally narrow and provider-neutral.
-
-**Evidence commits:**
-- metadata implementation `69318789af6078432860af49abefd24ad4ba4155`
-- metadata tests `5c6219ead71c4df6e94dd4d53f349ec7a0ab2576`
-- TRD v0.3 `876ca60f409a8924e8a0128118f274ed9bd27ebd`
-- FRD v0.3 `98396e11e8334d74a98ca39d068cc7fe458f6198`
+**Verification:** implementation/test commits were accepted; CI result was to be recorded when available.
 
 ---
 
@@ -120,43 +70,13 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 **Date:** 2026-09-17
 
-**Starting state:** source registration, URL metadata extraction and bounded snapshot capture existed as separate capabilities. There was no single explicit operation expressing their intended order or enforcing the capture boundary.
+**Objective:** compose source registration, URL metadata and optional bounded capture without collapsing evidence and interpretation.
 
-**Objective:** compose the existing layers into a deterministic-to-optional ingestion path without collapsing evidence and interpretation.
+**Implementation:** `ResearchIngestResult` plus `ingest_research_source()`. `capture=False` is network-free; `capture=True` requires a snapshot directory and performs bounded capture → hash-named persistence → provenance attachment.
 
-**Exact implementation paths:**
-- `src/memory_os/research.py`
-- `src/memory_os/research_pipeline.py`
-- `tests/test_research_pipeline.py`
-- `docs/implementations/IMPL-04-research-memory/BRD.md`
-- `docs/implementations/IMPL-04-research-memory/FRD.md`
-- `docs/implementations/IMPL-04-research-memory/PRD.md`
-- `docs/implementations/IMPL-04-research-memory/TRD.md`
-- `README.md`
-- this log
+**Tests:** offline registration, mocked end-to-end capture/provenance, required snapshot-directory validation.
 
-**Implementation:**
-1. `register_research_source()` now persists safe URL-derived metadata alongside source provenance.
-2. `ResearchIngestResult` records artifact ID, canonical URL, URL-derived metadata, optional snapshot and snapshot path.
-3. `ingest_research_source()` performs registration and metadata derivation without network I/O when `capture=False`.
-4. When `capture=True`, a snapshot directory is mandatory; bounded capture, hash-named persistence and provenance attachment happen in that order.
-
-**Tests:** added three offline integration tests covering network-free registration, end-to-end mocked capture/provenance persistence, and required snapshot-directory validation. No external website is contacted by the tests.
-
-**Failure status:** no implementation failure observed in this cycle. The network-free assertion is deliberate protection against accidental I/O during registration.
-
-**Verification:** workflow `tests`, run #186 (`35181985251`), passed across Python 3.11–3.14 for the v0.4 ingestion pipeline.
-
-**Known limitations:** snapshot capture remains text-only and uses standard-library HTTP. Provider metadata remains URL-derived observation, not remote verification.
-
-**Evidence commits:**
-- research registration metadata `61531f12992989708e0f09b196e658e909be7914`
-- ingestion pipeline `283690b62a998a0ee99be7fb1dc4c892665b7f36`
-- pipeline tests `8cab3e287b4528e0263fcafac2c2adcd1a1265d0`
-- README v0.4 `ea362dd5f2e47bbf8a82603ca35c5df7a74f613c`
-- FRD v0.4 `8d64ad5e3041dce9eac6bbe7fdfa9dd175be78bf`
-- PRD v0.3 `79022dd0a1d0afb107bf434f4fb6066791c4fcc4`
-- TRD v0.4 `dec60a9fd64299f6ab45e0d9b0e4df8527ffb2fd`
+**Verification:** workflow `tests`, run #186 (`35181985251`), passed across Python 3.11–3.14.
 
 ---
 
@@ -164,36 +84,17 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 **Date:** 2026-09-17
 
-**Starting state:** v0.4 provided a library-level ingestion pipeline, but the workflow was not directly usable from the installed `memory-os` command.
+**Objective:** expose deterministic registration and explicit capture through the CLI.
 
-**Objective:** expose the deterministic registration path and explicit capture path through the CLI while preserving the network boundary.
+**Implementation:** `add-research-source` and `capture-research-source`; the authoritative command implementation remains in `src/memory_os/cli.py`.
 
-**Exact implementation paths:**
-- `src/memory_os/cli.py`
-- `src/memory_os/cli_research.py` (created as an initial extraction experiment; the final CLI path is consolidated in `cli.py`)
-- `tests/test_cli_research.py`
-- `docs/implementations/IMPL-04-research-memory/PRD.md`
-- `docs/implementations/IMPL-04-research-memory/IMPLEMENTATION_LOG.md`
+**Failure:** first implementation-log update returned GitHub HTTP 409 because the log blob changed after fetch.
 
-**Implementation:** added `add-research-source` and `capture-research-source` commands. The first registers a source and prints JSON identity/metadata without network access. The second requires `--snapshot-dir`, invokes bounded capture and prints artifact/snapshot identity. The final command implementation is kept in the existing CLI module so the package continues to have one command entry point.
+**Root cause:** stale optimistic-concurrency SHA.
 
-**Tests:** added offline CLI regression tests for network-free registration and mocked capture. The capture test verifies that exactly one hash-named JSON snapshot is created.
+**Fix:** re-fetched the current log blob and retried.
 
-**Failure:** the first attempt to update the implementation log returned GitHub HTTP 409 because the log blob changed after it had been fetched.
-
-**Root cause:** concurrent sequential commits during the implementation cycle made the previously fetched content SHA stale.
-
-**Fix:** re-fetched the current log blob and retried the update. The retry succeeded.
-
-**Verification status:** the new CLI/test commits have been pushed. CI for the newest test-bearing head is pending; no green result is claimed until the workflow completes.
-
-**Known limitation:** `cli_research.py` is retained as a small helper module from the extraction experiment but is not wired into the console entry point; `cli.py` is authoritative. This can be removed in a later cleanup cycle if no external consumer uses it.
-
-**Evidence commits:**
-- helper extraction experiment `950ffa1cdb5d37a14691b475888ba039a82b476c`
-- CLI integration `4773f259adddc98e07583dbec2df413aad14e76e`
-- CLI tests `2218070ab8d152783fd501bbffea2e2c5131aa1e`
-- PRD v0.4 `2619a3a2d7a4233072b9c6e9e663568f7d7652f5`
+**Known limitation:** `cli_research.py` remains as a helper/extraction experiment but is not the console entry point.
 
 ---
 
@@ -201,13 +102,31 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 **Date:** 2026-09-17
 
-**Starting state:** v0.4 ingestion could preserve a bounded snapshot and v0.5 exposed the ingestion boundary through the CLI. The system still lacked a deterministic, network-free way to inspect captured evidence for basic source structure before semantic extraction.
+**Objective:** extract reproducible title, heading, hyperlink and absolute-URL observations from captured evidence without network access.
 
-**Objective:** add a narrow evidence-inspection layer that extracts reproducible title, heading, hyperlink and absolute-URL observations while preserving snapshot provenance.
+**Implementation:** `src/memory_os/research_extract.py` and `tests/test_research_extract.py`. Relative links are resolved and normalized; duplicate observations preserve first-observed order; snapshot hash/timestamp remain provenance.
+
+**Test failure:** CI run #200 (`35183355300`) failed in Python 3.12 because the test treated `::bad` as malformed even though URL resolution legitimately treats it as a relative reference.
+
+**Root cause:** incorrect regression fixture, not a production defect.
+
+**Fix:** replaced it with `https://[bad`. Remediation commit: `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
+
+**Current verification:** no workflow run is currently associated with the remediation commit through the connected GitHub workflow lookup, so this is not claimed as CI-green. The failure remains recorded.
+
+---
+
+## 9. Cycle v0.7 — Provenance-bound semantic candidate layer
+
+**Date:** 2026-09-17
+
+**Starting state:** preserved snapshots could be structurally inspected, but there was no intermediate representation for the research-intake use case: identify referenced repositories/tools/ideas/topics while retaining exact evidence provenance.
+
+**Objective:** create a deterministic semantic-candidate boundary that can later be replaced or augmented by an LLM without changing provenance semantics.
 
 **Exact implementation paths:**
-- `src/memory_os/research_extract.py`
-- `tests/test_research_extract.py`
+- `src/memory_os/research_semantic.py`
+- `tests/test_research_semantic.py`
 - `docs/implementations/IMPL-04-research-memory/BRD.md`
 - `docs/implementations/IMPL-04-research-memory/FRD.md`
 - `docs/implementations/IMPL-04-research-memory/PRD.md`
@@ -215,27 +134,27 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 - `README.md`
 - this log
 
-**Implementation:** added `ResearchObservations` and `extract_observations()`. The extractor operates only on an existing `SourceSnapshot`; it performs no network access. HTML-like evidence is inspected for `<title>`, headings, hyperlinks and explicit absolute URLs. Relative links are resolved against the snapshot URL, normalized through the existing URL boundary, and deduplicated while preserving first-observed order. Results carry snapshot content hash and capture timestamp as provenance.
+**Implementation:** added `ResearchCandidate` and `extract_semantic_candidates()`. The extractor consumes a `SourceSnapshot` plus `ResearchObservations` and produces conservative candidates for GitHub/GitLab repositories, explicitly introduced tools, explicitly introduced ideas, and title/heading topics. Every candidate stores exact source URL, snapshot content hash, capture timestamp, evidence text, confidence and `review_status=candidate`. Duplicate repository references are collapsed within one result.
 
-**Test failure:** the first CI run for the structural-extraction cycle failed on `test_ignores_malformed_and_empty_links` in Python 3.12. The test expected `::bad` to be rejected, but URL resolution correctly treated it as a relative path and produced `https://example.org/::bad`.
+**Boundary rule:** candidates are not durable memories, verified claims, endorsements or project links. The implementation makes no network calls, invokes no LLM and executes no downloaded code.
 
-**Root cause:** the regression test incorrectly classified a syntactically resolvable relative reference as malformed. The implementation was behaving consistently with URL resolution rules.
+**Tests added:** repository/tool/idea/topic extraction with provenance; duplicate repository reference deduplication; unknown-source behavior that does not invent provider metadata.
 
-**Fix:** replaced the test fixture with an actually malformed absolute URL, `https://[bad`, which the canonical URL validator rejects. No production code change was required.
+**Failure status:** no production failure observed in this cycle. CI verification of the new head is pending; no green result is claimed until GitHub Actions reports it.
 
-**Regression protection:** the corrected test now verifies that empty and genuinely malformed absolute links are ignored, while valid relative links remain supported by the positive extraction test.
+**Known limitations:** textual patterns are intentionally narrow and heuristic. This is a staging boundary for future semantic/model-assisted extraction, not a complete natural-language understanding engine. The candidate layer currently does not persist candidates into the graph.
 
-**CI evidence:** run #200 (`35183355300`) at head `6323e97740836a1518fa5e67a1b1d1cbf074f9a0` failed in Python 3.12 with one assertion; the other matrix jobs were cancelled after the failure. This failure is preserved here rather than hidden.
-
-**Remediation commit:** corrected test `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
-
-**Current verification:** the remediation commit has been pushed; its replacement CI run is pending and will be recorded separately.
-
-**Known limitations:** structural parsing is intentionally lightweight and not a full HTML parser. It does not establish semantic relationships, source truth, authorship, popularity or correctness.
+**Evidence commits:**
+- semantic implementation `5ca23dfebac290aa9b8285605db3dba8c1aaf4f1`
+- semantic tests `41746e5c2eb775ee64b703fb7983a8da9f1393fe`
+- BRD v0.4 `4fec748de4a1394c66823619f83462a3e29b34a9`
+- FRD v0.6 `d7eba1594b5bd976aa0dbc477c9e9232b713b8ce`
+- PRD v0.6 `845c65f9aabadeda8f3a6351fd9d741975f6f300`
+- TRD v0.6 `c12fa4a42022bc77b324a9df2fba0b50093bb2e5`
 
 ---
 
-## 9. Failure/remediation register
+## 10. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
@@ -245,8 +164,9 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 | v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
 | v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
 | v0.6 | Structural extraction test rejected valid relative URL | Incorrect test fixture, not production defect | Replace with genuinely malformed absolute URL | Positive relative-link test + malformed-link regression |
+| v0.7 | None observed | — | — | Provenance, deduplication and unknown-source tests |
 
-## 10. Current evidence boundary
+## 11. Current evidence boundary
 
 ```text
 URL
@@ -263,11 +183,11 @@ PRESERVED EVIDENCE
  ↓
 STRUCTURAL OBSERVATION ── evidence-bound
  ↓
-PROVENANCE ATTACHMENT
+SEMANTIC CANDIDATES ── reviewable, provenance-bound
  ↓
-SEMANTIC UNDERSTANDING  ← future
+DURABLE MEMORY / VERIFIED CLAIM ── not automatic
 ```
 
-## 11. Next step
+## 12. Next step
 
-Verify the remediation head in CI. Once green, use this deterministic evidence layer as the input boundary for semantic research extraction: identify referenced repositories, tools, entities, ideas and claims while retaining links back to the exact source snapshot and observation that produced each candidate.
+Verify the newest test-bearing head in CI. Then add a mixed-source integration path that demonstrates source → snapshot → observations → candidates, with repository/tool/entity records remaining deduplicated and traceable to exact evidence before moving toward model-assisted semantic extraction.
