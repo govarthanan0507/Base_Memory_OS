@@ -1,13 +1,15 @@
 # IMPL-04 TRD — Research Memory
 
-**Version:** 0.2
+**Version:** 0.3
 
 ## Paths
 
 - `src/memory_os/research.py` — URL normalization, classification and source registration
 - `src/memory_os/research_content.py` — bounded text capture, content hashing, snapshot persistence and artifact provenance attachment
+- `src/memory_os/research_metadata.py` — provider-neutral metadata hints derived from URL structure only
 - `tests/test_research.py` — deterministic normalization, classification and deduplication tests
 - `tests/test_research_content.py` — snapshot hashing, persistence, idempotent attachment and byte-bound tests
+- `tests/test_research_metadata.py` — YouTube/repository/unknown-source metadata tests
 - `src/memory_os/core.py` — artifact persistence and stable IDs
 
 ## Technical approach
@@ -26,12 +28,18 @@ Classification is conservative and URL-derived: YouTube-like hosts map to `video
 
 `attach_snapshot_metadata()` appends an idempotent snapshot record to the existing artifact metadata. It does not silently replace the source artifact's identity.
 
+## URL metadata adapters
+
+`extract_source_metadata()` provides provider-neutral identity hints without network access. Current rules recognize YouTube watch/Shorts URLs, `youtu.be` video URLs, and GitHub/GitLab repository paths. Unknown sites return only safe canonical URL/host hints. The adapter deliberately does not scrape titles, authors, view counts, repository contents or other remote metadata.
+
 ## Safety and evidence semantics
 
 Capture is an evidence acquisition step, not semantic understanding. The implementation does not execute downloaded content, summarize it, infer claims from it, or declare it authoritative. The byte limit is a resource-control boundary, and decode failures are surfaced rather than converted into invented text.
+
+URL-derived provider metadata is an observation about the supplied URL, not a verified statement about the current remote resource.
 
 No access-control bypass, credential handling or arbitrary code execution is implemented.
 
 ## Future extension points
 
-Provider-specific metadata adapters, repository/video/document extraction, citation relationships, content indexing and semantic research synthesis can be added after the capture boundary is stable.
+Fetched provider metadata, repository/video/document extraction, citation relationships, content indexing and semantic research synthesis can be added after the capture boundary is stable.
