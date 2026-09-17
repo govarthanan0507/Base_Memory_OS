@@ -1,18 +1,12 @@
 # IMPL-04 — Research Memory — Implementation Log
 
-## 1. Purpose of this log
+## 1. Purpose
 
-This is the chronological engineering audit trail for IMPL-04. It records the starting state, objective, exact implementation paths, tests, failures, root causes, remediation, verification evidence, limitations and next steps.
-
-**Standing rule:** a green result does not erase earlier failures. If a later implementation changes an assumption, both the earlier assumption and the correction remain visible.
-
----
+Chronological engineering audit trail for IMPL-04. Failures remain visible; later fixes are recorded rather than rewriting history.
 
 ## 2. Starting state
 
-IMPL-03 closed with project/file intelligence, artifact registration, artifact history, explicit project↔conversation continuity and evidence-labelled project views.
-
-The next unresolved product gap was external research. Useful research sources—websites, videos, repositories and documents—could be discussed in conversations, but there was not yet a dedicated research-source registration boundary that gave them canonical identity and duplicate-safe provenance.
+IMPL-03 established project/file intelligence, artifact history, project timelines, explicit project↔conversation continuity and evidence-labelled project views. IMPL-04 began by establishing canonical external research-source identity.
 
 ---
 
@@ -20,40 +14,26 @@ The next unresolved product gap was external research. Useful research sources�
 
 **Date:** 2026-09-17
 
-### Objective
+**Objective:** establish deterministic external-source identity before attempting content understanding.
 
-Create the smallest useful Research Memory layer without prematurely adding web scraping or semantic summarization.
+**Implementation paths:**
+- `src/memory_os/research.py`
+- `tests/test_research.py`
+- IMPL-04 BRD/FRD/PRD/TRD
 
-### Implementation
+**Implementation:** HTTP(S) URL normalization, conservative source classification, deterministic research artifact IDs, duplicate-safe artifact registration and provenance metadata.
 
-Added provider-neutral `ResearchSource`, deterministic URL normalization, conservative URL classification and duplicate-safe artifact registration.
+**Failure:** `ResearchSource.source_type` initially defaulted to `website`, so normal construction bypassed automatic URL classification.
 
-### Failure discovered during refinement
+**Root cause:** the dataclass default encoded a concrete type before registration could inspect the URL.
 
-`ResearchSource.source_type` initially defaulted to `website`, bypassing automatic URL classification for ordinary constructor calls.
+**Fix:** default changed to empty string; registration classifies when the explicit type is blank.
 
-### Root cause
+**Regression test:** YouTube registration without an explicit type must produce `video`.
 
-The dataclass default encoded a concrete classification before the registration boundary could inspect the URL.
+**Verification:** GitHub Actions run #164 (`35180978862`) passed on Python 3.11–3.14.
 
-### Remediation
-
-Changed the default to empty string. Registration now classifies whenever the explicit type is omitted/blank.
-
-### Regression test
-
-Added a YouTube registration test asserting `artifact_type == "video"` when no source type is supplied.
-
-### Verification
-
-GitHub Actions run **#164** (`35180978862`) completed successfully on Python 3.11, 3.12, 3.13 and 3.14 for the test-bearing source-identity changes. This closes the verification loop for v0.1.
-
-### Known limitations
-
-- URL classification is heuristic.
-- No external content is fetched.
-- No source snapshot is stored.
-- No citation extraction or automatic project linkage exists.
+**Known limitations:** classification is heuristic; no external content capture or semantic interpretation.
 
 ---
 
@@ -61,103 +41,78 @@ GitHub Actions run **#164** (`35180978862`) completed successfully on Python 3.1
 
 **Date:** 2026-09-17
 
-### Starting state
+**Starting state:** source identity was CI-verified, but registered sources had no preserved content evidence.
 
-Research-source identity and classification were green in the repository CI matrix. The product still could not preserve the actual external evidence behind a registered source.
+**Objective:** add explicit, bounded content capture without turning retrieval into interpretation.
 
-### Objective
-
-Add the smallest content-capture boundary that preserves evidence without turning fetching into semantic interpretation.
-
-### Exact implementation paths
-
-Added:
-
+**Exact implementation paths:**
 - `src/memory_os/research_content.py`
 - `tests/test_research_content.py`
+- `docs/implementations/IMPL-04-research-memory/{BRD,FRD,PRD,TRD}.md`
 
-Updated:
+**Implementation:** `SourceSnapshot`, bounded standard-library HTTP capture, timeout and byte limits, charset-aware text decoding, SHA-256 content identity, content-hash-named JSON snapshot persistence and idempotent snapshot provenance attachment to research artifacts.
 
-- `docs/implementations/IMPL-04-research-memory/BRD.md`
-- `docs/implementations/IMPL-04-research-memory/FRD.md`
-- `docs/implementations/IMPL-04-research-memory/PRD.md`
-- `docs/implementations/IMPL-04-research-memory/TRD.md`
-- this implementation log
+**Tests:** deterministic hashing, provenance-preserving persistence, idempotent attachment and oversized-response rejection.
 
-### Implementation
+**Failure status:** no implementation failure observed in the recorded cycle. Rejected oversized input is intentional test behavior, not a build failure.
 
-`SourceSnapshot` represents a captured text response and records:
+**Verification:** the source-capture commits were pushed to `main`; CI verification is to be recorded when the resulting workflow completes.
 
-- canonical URL;
-- captured text;
-- capture timestamp;
-- content type;
-- HTTP status when available;
-- deterministic SHA-256 content hash; and
-- optional metadata.
+**Known limitations:** text only; no provider metadata extraction; no semantic parsing; snapshots are filesystem JSON; network capture is explicit.
 
-`capture_text()`:
-
-- normalizes the URL through the existing research identity boundary;
-- performs an explicit HTTP(S) request using Python's standard library;
-- applies a caller-configurable timeout;
-- reads at most `max_bytes + 1` bytes;
-- rejects responses beyond the configured byte bound;
-- uses the declared response charset or UTF-8; and
-- raises an explicit error when text decoding fails.
-
-`save_snapshot()` persists the snapshot as a JSON evidence file named by its content hash. The snapshot is separate from the source artifact, so source identity is not confused with a particular capture.
-
-`attach_snapshot_metadata()` adds an idempotent provenance record to an existing research artifact, including snapshot path, hash, capture time, content type and HTTP status.
-
-### Evidence semantics
-
-The implementation deliberately stops at capture. A successful HTTP response is not treated as proof that the source is authoritative, correct or semantically understood. No summarization, claim extraction, downloaded-code execution, credential handling or access-control bypass is included.
-
-### Tests added
-
-`tests/test_research_content.py` covers:
-
-1. deterministic snapshot hashing;
-2. preservation of content and explicit provenance during snapshot persistence;
-3. idempotent attachment of the same snapshot metadata;
-4. rejection of an oversized response before it can become stored evidence.
-
-### Tests executed
-
-The test-bearing commits were pushed to `main`; repository CI is the authoritative execution environment for the Python 3.11–3.14 matrix. The resulting CI run is not yet recorded here at the time of this entry and will be appended once available.
-
-### Failure register
-
-No implementation failure has been observed in this cycle yet. The oversized-response behavior is an intentional rejected-input test, not a build failure.
-
-### Known limitations
-
-- Capture currently handles text responses only.
-- It does not extract YouTube metadata, repository metadata or document structure.
-- It does not sanitize or canonicalize arbitrary tracking query parameters.
-- Snapshot storage is filesystem JSON rather than a dedicated artifact table/blob store.
-- Network access remains explicit and caller initiated.
+**Evidence commits:**
+- implementation `c589e128443cf6b084d89e2aa861095473109ed7`
+- tests `e13c0c68fb9b336faf19dfdc0c364cb4a7aeaa05`
+- BRD `30b27a555deefe96e28727d790e4027d03d818ac`
+- FRD `1cab3b3adf488aa91be5142608ce720167e0a0ae`
+- PRD `493d8a9d1721b4e7aaedd855e1abcec4e2e44556`
+- TRD `41402afa03f95eb0ef1e5efac900335ac214dc72`
 
 ---
 
-## 5. Verification strategy
+## 5. Cycle v0.3 — URL-only provider metadata hints
 
-### Unit verification
+**Date:** 2026-09-17
 
-Normalization, classification, deterministic identity, deduplication, snapshot hashing, persistence, byte limits and idempotent provenance attachment.
+**Starting state:** bounded capture existed; the system still lacked a clean adapter boundary for identifying provider/resource IDs without making network calls.
 
-### Integration verification
+**Objective:** add deterministic provider-neutral metadata extraction from URL structure only.
 
-Research source → artifact → captured snapshot → provenance relationship.
+**Exact implementation paths:**
+- `src/memory_os/research_metadata.py`
+- `tests/test_research_metadata.py`
+- `docs/implementations/IMPL-04-research-memory/FRD.md`
+- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- this log
 
-### Provenance verification
+**Implementation:** added `extract_source_metadata()` recognizing:
+- YouTube watch URLs → provider/resource ID/video;
+- YouTube Shorts URLs → provider/resource ID/short;
+- `youtu.be` URLs → provider/resource ID/video;
+- GitHub/GitLab repository paths → provider/owner/repository/repository kind;
+- unknown sites → canonical URL and host only.
 
-A source retains canonical identity; each capture retains its own hash/time/location. No capture is promoted to a semantic conclusion automatically.
+The adapter performs no HTTP requests and does not infer titles, authors, view counts, repository contents or other remote facts.
 
-### CI verification
+**Tests:** added four tests covering YouTube video identity, YouTube Shorts identity, repository identity and safe unknown-site behavior.
 
-The repository's GitHub Actions matrix runs the full unittest suite on Python 3.11–3.14.
+**Failure:** one documentation update initially used a stale blob SHA and GitHub returned HTTP 409.
+
+**Root cause:** the file had changed after the earlier fetch, so the optimistic update used an outdated content SHA.
+
+**Fix:** re-fetched the current file and retried with its current SHA. The retry succeeded.
+
+**Regression protection:** future documentation edits must fetch the latest blob SHA immediately before updating a file that may have changed during the cycle.
+
+**Verification:** implementation and test commits were accepted by GitHub. CI result for the new test-bearing commits is not yet recorded in this log and will be appended when available.
+
+**Known limitations:** URL hints are observations about URL structure; they are not remote metadata verification. Provider support is intentionally narrow and provider-neutral.
+
+**Evidence commits:**
+- metadata implementation `69318789af6078432860af49abefd24ad4ba4155`
+- metadata tests `5c6219ead71c4df6e94dd4d53f349ec7a0ab2576`
+- TRD v0.3 `876ca60f409a8924e8a0128118f274ed9bd27ebd`
+- FRD v0.3 `98396e11e8334d74a98ca39d068cc7fe458f6198`
 
 ---
 
@@ -165,43 +120,28 @@ The repository's GitHub Actions matrix runs the full unittest suite on Python 3.
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
-| v0.1 | `ResearchSource.source_type` defaulted to `website`, bypassing URL classification | Concrete dataclass default prevented the unspecified-type branch from executing | Default changed to empty string; registration classifies when type is omitted | YouTube registration regression test |
-| v0.2 | None observed yet | — | — | Snapshot hashing/persistence/limit/idempotence tests |
+| v0.1 | Source type default bypassed classification | Concrete dataclass default | Blank default + automatic classification | YouTube registration test |
+| v0.2 | None observed | — | — | Snapshot/content-limit/idempotence tests |
+| v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
 
-This table is append-oriented. Future failures remain visible.
+## 7. Current evidence boundary
 
----
-
-## 7. Evidence trail
-
-### Source identity
-
-- Research implementation: `41e426b796fb036d31738a7ba527bd90ffa6df0f`
-- Research tests: `6387c0ccfa1409cf33278142033e8c6ceae12b15`
-- Source-type default remediation: `2a71b2120543a930d0fcd8654c38bf81f38d03ec`
-- Regression test: `e089c6974b924c28a97fcbde06c31a5b48238402`
-- CI run #164: `35180978862`, green on Python 3.11–3.14
-
-### Documentation baseline
-
-- BRD baseline: `9e74293b2dd4e35a9e17dbd13391d852992451c8`
-- FRD baseline: `ebfae12b61b773cab17c1a168f87d14beaaccd9c`
-- PRD baseline: `108e9e1e2b74f82ac61dc36de4425fb68c5bfc62`
-- TRD baseline: `2fa8fbcf5678c9f5a57a5b65a5fbc5612326c7f1`
-
-### v0.2 source capture
-
-- `research_content.py`: `c589e128443cf6b084d89e2aa861095473109ed7`
-- `test_research_content.py`: `e13c0c68fb9b336faf19dfdc0c364cb4a7aeaa05`
-- BRD v0.2: `30b27a555deefe96e28727d790e4027d03d818ac`
-- FRD v0.2: `1cab3b3adf488aa91be5142608ce720167e0a0ae`
-- TRD v0.2: `41402afa03f95eb0ef1e5efac900335ac214dc72`
-- PRD v0.2: `493d8a9d1721b4e7aaedd855e1abcec4e2e44556`
-
-The current log update itself is committed separately. The resulting CI run will be appended without rewriting this history.
-
----
+```text
+URL
+ ↓
+CANONICAL SOURCE IDENTITY
+ ↓
+URL-DERIVED METADATA ── observation only
+ ↓
+OPTIONAL BOUNDED CAPTURE
+ ↓
+HASHED SNAPSHOT
+ ↓
+PRESERVED EVIDENCE
+ ↓
+SEMANTIC UNDERSTANDING  ← future
+```
 
 ## 8. Next step
 
-Verify v0.2 in CI. If green, add the first provider-specific metadata adapter boundary—starting with metadata that can be obtained without pretending to understand the source content. Semantic synthesis remains later.
+Verify v0.2/v0.3 test-bearing commits in CI. Then add a small integration path that registers a source, derives URL metadata, optionally captures bounded content, persists the snapshot and exposes the complete provenance chain. Only after that should semantic research extraction begin.
