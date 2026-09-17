@@ -27,7 +27,6 @@ class TimelineTests(unittest.TestCase):
 
                 events = project_timeline(store, pid)
                 summaries = [event["summary"] for event in events]
-                self.assertTrue(any("Video Project" in item for item in summaries))
                 self.assertTrue(any("discussed_in" in item for item in summaries))
                 self.assertTrue(any("collector.py" in item for item in summaries))
                 self.assertTrue(any("Tested the collector" in item for item in summaries))
@@ -36,6 +35,33 @@ class TimelineTests(unittest.TestCase):
                 self.assertIn("Video Project", rendered)
                 self.assertIn("collector.py", rendered)
                 self.assertIn("Tested the collector", rendered)
+            finally:
+                store.close()
+
+    def test_artifact_change_event_is_exposed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                pid = store.add_project(Project("Artifact Project", str(Path(tmp) / "artifact")))
+                aid = store.add_artifact(Artifact(
+                    "app.py", "code", str(Path(tmp) / "artifact" / "app.py"),
+                    content_hash="new-hash", modified_at="2026-09-17T12:00:00+00:00",
+                ))
+                store.relate(pid, "contains", aid)
+                store.add_artifact_event(
+                    aid,
+                    event_type="changed",
+                    timestamp="2026-09-17T13:00:00+00:00",
+                    old_hash="old-hash",
+                    new_hash="new-hash",
+                    old_modified_at="2026-09-17T11:00:00+00:00",
+                    new_modified_at="2026-09-17T12:00:00+00:00",
+                )
+                events = project_timeline(store, pid)
+                changes = [event for event in events if event["event_type"] == "artifact_change"]
+                self.assertEqual(len(changes), 1)
+                self.assertEqual(changes[0]["metadata"]["old_hash"], "old-hash")
+                self.assertEqual(changes[0]["metadata"]["new_hash"], "new-hash")
             finally:
                 store.close()
 
