@@ -62,22 +62,39 @@ Added conservative `classify_url()` behavior:
 
 Added `register_research_source()` which reuses the existing artifact registry. The canonical URL becomes the artifact location and a deterministic research-namespaced ID is derived from the canonical URL.
 
+### Failure discovered during refinement
+
+The first implementation gave `ResearchSource.source_type` a default of `"website"`. That meant the registration layer's intended automatic classification branch (`explicit type or classify_url`) was never reached for the normal constructor path. A YouTube URL could therefore be stored as `website` unless callers explicitly supplied `source_type=""`.
+
+### Root cause
+
+The dataclass default encoded a concrete classification before the registration boundary had an opportunity to inspect the URL.
+
+### Remediation
+
+Changed the default to an empty string. Registration now treats an empty/whitespace type as unspecified and calls `classify_url(canonical_url)`. Explicit source types remain supported for cases where URL heuristics are insufficient.
+
+### Regression test
+
+Added `test_registration_uses_url_classification_when_type_is_omitted` to `tests/test_research.py`. It registers a YouTube URL without a source type and asserts that both the artifact type and persisted metadata identify it as `video`.
+
 ### Important design choice
 
 This cycle intentionally does **not** fetch external pages. Registering a URL means only that the source was recorded as a research artifact. It does not mean the content was downloaded, parsed or independently verified.
 
-### Tests added
+### Tests
 
-`tests/test_research.py` covers:
+`tests/test_research.py` now covers:
 
 1. URL normalization while preserving query parameters;
 2. removal of fragments/default ports;
-3. classification of video/repository/document/website examples; and
-4. duplicate-safe registration of equivalent canonical URLs.
+3. classification of video/repository/document/website examples;
+4. automatic classification during registration when type is omitted; and
+5. duplicate-safe registration of equivalent canonical URLs.
 
-### Failure/remediation status
+### Verification status
 
-No CI failure has been observed yet for this new cycle at the time this log was written. The implementation is intentionally small so that the identity boundary can be validated before adding source fetching.
+The implementation and regression test were committed successfully. GitHub Actions verification for these two commits is still pending at the time of this log update; no CI result is being represented as green until the workflow reports it.
 
 ### Known limitations
 
@@ -116,7 +133,7 @@ The repository's existing GitHub Actions matrix will run the full unittest suite
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
-| v0.1 | None recorded yet | — | — | Research unit tests |
+| v0.1 | `ResearchSource.source_type` defaulted to `website`, bypassing URL classification | Concrete dataclass default prevented the unspecified-type branch from executing | Default changed to empty string; registration classifies when type is omitted | YouTube registration regression test |
 
 This table will be appended to rather than rewritten as new failures are discovered.
 
@@ -132,11 +149,13 @@ Initial implementation commits:
 - IMPL-04 FRD: `ebfae12b61b773cab17c1a168f87d14beaaccd9c`
 - IMPL-04 PRD: `108e9e1e2b74f82ac61dc36de4425fb68c5bfc62`
 - IMPL-04 TRD: `2fa8fbcf5678c9f5a57a5b65a5fbc5612326c7f1`
+- Source-type default remediation: `2a71b2120543a930d0fcd8654c38bf81f38d03ec`
+- Regression test: `e089c6974b924c28a97fcbde06c31a5b48238402`
 
-CI run identifiers will be added here after the new test-bearing commit is verified by GitHub Actions.
+CI run identifiers will be added after the test-bearing commits are verified by GitHub Actions.
 
 ---
 
 # 7. Next step
 
-Validate the new research test in CI. If green, the next Research Memory slice is source-content capture/metadata adapters with explicit provenance—not yet semantic synthesis.
+Verify the new test-bearing commits in CI. If green, the next Research Memory slice is source-content/metadata capture adapters with explicit provenance—not semantic synthesis yet.
