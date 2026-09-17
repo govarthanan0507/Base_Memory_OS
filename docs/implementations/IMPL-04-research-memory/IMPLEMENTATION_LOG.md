@@ -160,23 +160,52 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 ---
 
-## 7. CI verification — v0.4 test-bearing main
+## 7. Cycle v0.5 — Research CLI boundary
 
-**Workflow:** `tests`
+**Date:** 2026-09-17
 
-**Run:** #186 (`35181985251`)
+**Starting state:** v0.4 provided a library-level ingestion pipeline, but the workflow was not directly usable from the installed `memory-os` command.
 
-**Head:** `90c36bfc433baddd66b9b642589ac4c8ef2575b0`
+**Objective:** expose the deterministic registration path and explicit capture path through the CLI while preserving the network boundary.
 
-**Matrix:** Python 3.11, 3.12, 3.13 and 3.14
+**Exact implementation paths:**
+- `src/memory_os/cli.py`
+- `src/memory_os/cli_research.py` (created as an initial extraction experiment; the final CLI path is consolidated in `cli.py`)
+- `tests/test_cli_research.py`
+- `docs/implementations/IMPL-04-research-memory/PRD.md`
+- `docs/implementations/IMPL-04-research-memory/IMPLEMENTATION_LOG.md`
 
-**Result:** all four matrix jobs completed successfully. This verifies the current v0.4 test-bearing head, including the research ingestion pipeline tests, on all supported CI Python versions.
+**Implementation:** added `add-research-source` and `capture-research-source` commands. The first registers a source and prints JSON identity/metadata without network access. The second requires `--snapshot-dir`, invokes bounded capture and prints artifact/snapshot identity. The final command implementation is kept in the existing CLI module so the package continues to have one command entry point.
 
-**Important:** the repository also has separate workflow runs for intermediate commits; this entry records the run that verified the final v0.4 audit-log head.
+**Tests:** added offline CLI regression tests for network-free registration and mocked capture. The capture test verifies that exactly one hash-named JSON snapshot is created.
+
+**Failure:** the first attempt to update the implementation log returned GitHub HTTP 409 because the log blob changed after it had been fetched.
+
+**Root cause:** concurrent sequential commits during the implementation cycle made the previously fetched content SHA stale.
+
+**Fix:** re-fetched the current log blob and retried the update. The retry succeeded.
+
+**Verification status:** the new CLI/test commits have been pushed. CI for the newest test-bearing head is pending; no green result is claimed until the workflow completes.
+
+**Known limitation:** `cli_research.py` is retained as a small helper module from the extraction experiment but is not wired into the console entry point; `cli.py` is authoritative. This can be removed in a later cleanup cycle if no external consumer uses it.
+
+**Evidence commits:**
+- helper extraction experiment `950ffa1cdb5d37a14691b475888ba039a82b476c`
+- CLI integration `4773f259adddc98e07583dbec2df413aad14e76e`
+- CLI tests `2218070ab8d152783fd501bbffea2e2c5131aa1e`
+- PRD v0.4 `2619a3a2d7a4233072b9c6e9e663568f7d7652f5`
 
 ---
 
-## 8. Failure/remediation register
+## 8. CI verification — v0.4 and CLI follow-up
+
+**v0.4 pipeline verification:** workflow `tests`, run #186 (`35181985251`), head `90c36bfc433baddd66b9b642589ac4c8ef2575b0`; Python 3.11, 3.12, 3.13 and 3.14 all completed successfully.
+
+**CLI follow-up:** a later workflow run was observed at head `3da32593cb99b20393dd32bb7cbcf468d73db5c2` as run #188 and was still in progress at the time of this log update. Python 3.11 had completed successfully and the other matrix jobs were completing; final run conclusion is intentionally not asserted here.
+
+---
+
+## 9. Failure/remediation register
 
 | Cycle | Failure | Root cause | Remediation | Regression protection |
 |---|---|---|---|---|
@@ -184,9 +213,9 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 | v0.2 | None observed | — | — | Snapshot/content-limit/idempotence tests |
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
 | v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
-| v0.4-doc | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
+| v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
 
-## 9. Current evidence boundary
+## 10. Current evidence boundary
 
 ```text
 URL
@@ -206,6 +235,6 @@ PROVENANCE ATTACHMENT
 SEMANTIC UNDERSTANDING  ← future
 ```
 
-## 10. Next step
+## 11. Next step
 
-With v0.4 now CI-verified, the next implementation slice should expose the ingestion pipeline through the CLI only if that improves the actual workflow, then begin semantic research extraction behind the preserved evidence boundary. Provider-specific remote metadata should remain an adapter concern and should not leak into the memory core.
+Wait for final CI verification of the CLI test-bearing head, then begin semantic research extraction behind the preserved evidence boundary. Provider-specific remote metadata should remain an adapter concern and should not leak into the memory core.
