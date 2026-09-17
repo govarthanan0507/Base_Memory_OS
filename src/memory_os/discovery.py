@@ -10,12 +10,16 @@ from pathlib import Path
 from .core import Artifact, MemoryStore, Project
 
 PROJECT_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle", "CMakeLists.txt", "README.md", ".git"}
+STRONG_PROJECT_MARKERS = PROJECT_MARKERS - {"README.md"}
 DEPENDENCY_MARKERS = {"pyproject.toml", "package.json", "Cargo.toml", "go.mod", "requirements.txt", "Pipfile", "poetry.lock", "composer.json", "pom.xml", "build.gradle"}
 IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache", ".pytest_cache", "dist", "build"}
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".cpp", ".c", ".cs", ".rb", ".php", ".swift", ".kt"}
 MAX_HASH_BYTES = 20 * 1024 * 1024
 MAX_ANALYSIS_BYTES = 512 * 1024
 ENTRYPOINT_NAMES = {"main.py", "app.py", "server.py", "cli.py", "index.js", "index.ts", "main.go", "main.rs", "Program.cs"}
+TEST_DIR_NAMES = {"test", "tests", "spec", "specs"}
+TEST_FILE_RE = re.compile(r"(^test_.*\.(py|js|ts|tsx|jsx)$|.*(_test|\.test|\.spec)\.(py|js|ts|tsx|jsx)$)", re.I)
+TODO_RE = re.compile(r"\b(TODO|FIXME)\b", re.I)
 
 
 def file_hash(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -57,18 +61,38 @@ def _git_evidence(root: Path) -> dict[str, str | bool]:
 
 
 def likely_project_roots(root: Path) -> list[Path]:
+    """Return non-overlapping project roots, preferring strong project markers.
+
+    README-only directories are treated as project roots only when they contain
+    code or no stronger project root exists below them. This prevents a
+    workspace-level README from swallowing real child projects.
+    """
     root = root.resolve()
-    candidates = []
+    candidates: list[tuple[Path, bool]] = []
     for current, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not d.startswith(".")]
-        markers = set(files) | ({".git"} if (Path(current) / ".git").is_dir() else set())
+        current_path = Path(current)
+        markers = set(files) | ({".git"} if (current_path / ".git").is_dir() else set())
         if markers & PROJECT_MARKERS:
-            candidates.append(Path(current))
-    candidates.sort(key=lambda p: (len(p.parts), str(p)))
-    selected = []
-    for candidate in candidates:
+            strong = bool(markers & STRONG_PROJECT_MARKERS)
+            has_code = any(Path(name).suffix.lower() in CODE_EXTENSIONS for name in files)
+            if strong or has_code:
+                candidates.append((current_path, strong))
+
+    candidates.sort(key=lambda item: (len(item[0].parts), str(item[0])))
+    strong_roots = [path for path, strong in candidates if strong]
+    selected: list[Path] = []
+    for candidate, _strong in candidates:
+        # A weaker outer README/code root is not selected if it contains a
+        # stronger descendant. The descendant is the more useful project unit.
+        if any(candidate in strong_root.parents for strong_root in strong_roots):
+            continue
         if not any(parent in candidate.parents for parent in selected):
             selected.append(candidate)
+    # If the scan itself is a strong project root, keep it rather than requiring
+    # a child project marker.
+    if not selected and (root / ".git").is_dir():
+        selected.append(root)
     return selected
 
 
@@ -103,6 +127,32 @@ def _iso_mtime(path: Path, stat: os.stat_result) -> str:
     return datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
 
+def _state_evidence(root: Path, files: list[Path], code_files: list[Path]) -> dict[str, object]:
+    test_files = []
+    todo_count = 0
+    recent_code_files = 0
+    now = datetime.now(timezone.utc).timestamp()
+    for path in code_files:
+        try:
+            if path.parent.name.lower() in TEST_DIR_NAMES or TEST_FILE_RE.match(path.name):
+                test_files.append(path)
+            stat = path.stat()
+            if now - stat.st_mtime <= 30 * 24 * 60 * 60:
+                recent_code_files += 1
+            if stat.st_size <= MAX_ANALYSIS_BYTES:
+                todo_count += len(TODO_RE.findall(path.read_text(encoding="utf-8", errors="replace")))
+        except (OSError, UnicodeError):
+            continue
+    return {
+        "readme_present": (root / "README.md").is_file(),
+        "has_tests": bool(test_files),
+        "test_file_count": len(test_files),
+        "todo_fixme_count": todo_count,
+        "recent_code_file_count_30d": recent_code_files,
+        "code_activity_ratio_30d": round(recent_code_files / len(code_files), 3) if code_files else 0.0,
+    }
+
+
 def inspect_project(root: Path) -> Project:
     files, code_files, markers, entrypoints, imports = [], [], [], [], set()
     total_bytes = 0
@@ -134,6 +184,7 @@ def inspect_project(root: Path) -> Project:
             pass
     name = summary or root.name.replace("_", " ").replace("-", " ").strip().title()
     git = _git_evidence(root)
+    state_evidence = _state_evidence(root, files, code_files)
     status = "PARTIALLY BUILT" if code_files else "DISCOVERED"
     metadata = {
         "file_count": len(files),
@@ -144,7 +195,8 @@ def inspect_project(root: Path) -> Project:
         "likely_entrypoints": sorted(set(entrypoints)),
         "import_hints": sorted(imports),
         "git": git,
-        "discovery_version": "0.3.0",
+        "state_evidence": state_evidence,
+        "discovery_version": "0.4.0",
     }
     evidence = 0.45 + (0.15 if code_files else 0) + (0.1 if summary else 0) + (0.1 if len(markers) > 1 else 0)
     evidence += min(0.1, 0.05 if entrypoints else 0) + min(0.1, 0.05 if (set(markers) & DEPENDENCY_MARKERS) else 0)
