@@ -4,21 +4,19 @@ A local-first, vendor-independent personal work memory system.
 
 ## Current milestone
 
-**IMPL-03 — Project & File Intelligence v0.9 — evidence view + completion validation**
+**IMPL-04 — Research Memory v0.1 — canonical external-source identity**
 
-IMPL-03 now has read-only filesystem discovery, project/artifact registration, structural and state evidence, Git identity, historical artifact changes, project timelines, explicit project↔conversation continuity, deterministic nested-project boundaries, and a compact evidence-labelled project view.
+IMPL-03 established read-only filesystem/project intelligence, artifact registration and history, project timelines, explicit project↔conversation continuity, deterministic nested-project boundaries, and an evidence-labelled project view.
 
-The repair pass restored message identity compatibility, candidate extraction from both domain objects and persisted records, conversation-schema initialization for evidence linking, memory-aware continuity traversal, richer JSON provenance, Git ref parsing, explicit timeline event types, stable continuity identifiers, canonical provider external-ID resolution, and stable timestamps for idempotent candidate projection.
+IMPL-04 now adds a provider-neutral `ResearchSource` boundary that normalizes external HTTP(S) URLs, conservatively classifies common research sources (video, repository, document, website), preserves provenance/capture metadata, and registers sources as deduplicated artifacts using deterministic IDs.
 
-Project discovery preserves strong nested project boundaries in monorepo-like layouts and prevents a parent project's artifact scan from swallowing selected child-project artifacts.
+A refinement corrected an important identity-boundary bug: an omitted research source type now triggers URL classification instead of silently defaulting to `website`. The regression test covers a YouTube URL registered without an explicit type.
 
-The new `project-evidence-view` CLI presents four distinct evidence surfaces: current snapshot, historical project evidence, explicit conversation continuity, and current artifacts. Structural signals are explicitly treated as evidence rather than claims of intent, code quality, production readiness, or completion.
-
-Discovery remains **read-only**: no source files are moved, renamed, deleted or executed.
+Research registration is intentionally **not content verification**. This slice records source identity only; it does not fetch, parse, summarize, or claim that an external page was independently verified.
 
 ## Verification status
 
-GitHub Actions run #142 completed successfully across Python 3.11–3.14 after the canonical conversation identity assertion was repaired. The new project-evidence view and its test are now the remaining verification change for this cycle.
+The source-classification remediation and its regression test are committed. GitHub Actions verification for the new test-bearing commits is pending and will be recorded in the IMPL-04 engineering log; no unverified CI result is presented as green.
 
 ## Status
 
@@ -33,10 +31,11 @@ GitHub Actions run #142 completed successfully across Python 3.11–3.14 after t
 - **IMPL-03 artifact history:** append-only discovery/change events implemented.
 - **Canonical identity boundary:** provider-facing conversation external IDs are resolved to stable internal conversation IDs before graph linking.
 - **Compact project evidence:** snapshot/history/continuity/artifact view implemented with explicit evidence semantics.
+- **IMPL-04 research identity:** URL normalization, source classification, deterministic research artifact identity and duplicate-safe registration implemented.
 
-## IMPL-03 completion gate
+## IMPL-04 current gate
 
-IMPL-03 is complete only after the latest CI matrix including the new evidence-view test is green and representative mixed workspace/monorepo-like discovery tests remain green. Structural signals remain evidence rather than claims of code quality, production readiness or project intent.
+The research identity slice is complete only after its regression test is green in the repository CI matrix. The next slice is source-content/metadata capture with explicit provenance; semantic synthesis remains deliberately out of scope until source capture is reliable.
 
 ## Roadmap
 
@@ -44,4 +43,4 @@ IMPL-01 Memory Core → IMPL-02 Conversation Memory → IMPL-03 Project & File I
 
 ## Development rule
 
-**README must be updated after every implementation iteration, before the next `go on` cycle is considered complete.**
+**README and the implementation log must be updated after every implementation iteration, before the next `go on` cycle is considered complete. Failures and remediation remain in the log rather than being rewritten away.**
