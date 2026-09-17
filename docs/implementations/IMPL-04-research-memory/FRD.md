@@ -1,6 +1,6 @@
 # IMPL-04 FRD — Research Memory
 
-**Version:** 0.5
+**Version:** 0.6
 
 ## Functional requirements
 
@@ -29,6 +29,11 @@
 - FR-23 Normalize and deduplicate observed links and headings while preserving first-observed order.
 - FR-24 Structural observations shall carry the captured snapshot content hash and capture timestamp as provenance.
 - FR-25 Structural extraction shall not infer semantic claims, verify source truth, or execute downloaded content.
+- FR-26 Produce conservative, deterministic research candidates from preserved observations and snapshot text for repositories, tools, ideas and topics.
+- FR-27 Every semantic candidate shall retain source URL, exact snapshot content hash, capture timestamp and candidate evidence text.
+- FR-28 Semantic candidates shall be marked as reviewable candidates and shall not automatically become durable memories or verified claims.
+- FR-29 Repeated identical repository references shall be deduplicated within one extraction result without losing provenance.
+- FR-30 Semantic extraction shall perform no network I/O, LLM inference or downloaded-code execution.
 
 ## Acceptance behavior
 
@@ -41,3 +46,5 @@ Provider metadata extraction must remain network-free and deterministic for the 
 The ingestion operation provides the complete deterministic-to-optional boundary in one call: source registration → URL metadata → optional network capture → local snapshot → artifact provenance. Capture errors must surface to the caller rather than being represented as successful ingestion.
 
 Structural extraction operates only on already-captured evidence. Repeated identical content produces identical observations, and every observation result can be traced back to the snapshot hash. Malformed links are ignored rather than converted into invented source identities.
+
+Semantic candidate extraction operates after structural evidence inspection. A repository candidate is grounded in an observed GitHub/GitLab URL; tool and idea candidates are produced only by explicit conservative textual patterns; title/headings become topic candidates rather than authoritative summaries. Candidates retain exact evidence provenance and a review status. They are not written to durable memory automatically.
