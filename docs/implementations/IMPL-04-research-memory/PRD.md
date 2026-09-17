@@ -1,6 +1,6 @@
 # IMPL-04 PRD — Research Memory
 
-**Version:** 0.3
+**Version:** 0.4
 
 ## Product intent
 
@@ -17,6 +17,7 @@ Make external research traceable inside Personal Work Memory by turning sources 
 7. Treat the snapshot as evidence, not a verified conclusion.
 
 The programmatic entry point for this sequence is `ingest_research_source()`.
+The CLI now exposes the same boundary through `add-research-source` and `capture-research-source`.
 
 ## Priorities
 
@@ -29,6 +30,8 @@ The programmatic entry point for this sequence is `ingest_research_source()`.
 ## Product behavior
 
 The system must make the provenance chain visible enough to answer: "What source did we record?" and, after capture, "What exact content snapshot did we store, when, and where?" The ingestion path must make the boundary explicit: registration and URL metadata are local observations; network capture is opt-in; snapshot persistence follows successful capture; provenance records the relationship.
+
+The CLI mirrors this behavior: `add-research-source` is network-free, while `capture-research-source` requires an explicit snapshot directory and exposes the resulting artifact/snapshot identity as JSON.
 
 It must not imply that a fetched source is true or authoritative merely because HTTP retrieval succeeded.
 
