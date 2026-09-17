@@ -4,7 +4,7 @@ from pathlib import Path
 
 from memory_os.continuity import conversation_context, project_context, render_project_reentry_brief, render_reentry_brief
 from memory_os.conversation import Conversation, Message, persist_conversation
-from memory_os.core import Artifact, Memory, MemoryStore, Project
+from memory_os.core import Artifact, Memory, MemoryCandidateRecord, MemoryStore, Project
 
 
 class ContinuityTests(unittest.TestCase):
@@ -74,14 +74,15 @@ class ContinuityTests(unittest.TestCase):
                 pid = store.add_project(Project("Importer", str(Path(tmp) / "importer")))
                 store.relate(pid, "discussed_in", cid)
                 store.add_project_event(pid, "decision", "Keep importer deterministic", timestamp="2026-09-17T05:00:00+00:00")
-                store.add_candidate(
-                    conversation_id=cid,
+                store.add_candidate(MemoryCandidateRecord(
                     content="Test the importer with a real ChatGPT export",
                     memory_type="task",
+                    source="test",
+                    source_message_id="msg-1",
                     confidence=0.9,
                     project_id=pid,
                     observed_at="2026-09-17T05:01:00+00:00",
-                )
+                ))
 
                 packet = project_context(store, pid)
                 self.assertEqual(packet["latest_conversation"]["id"], cid)
