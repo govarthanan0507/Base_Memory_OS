@@ -11,6 +11,7 @@ from .core import Memory, MemoryStore
 from .discovery import scan_workspace
 from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
+from .project_evidence import render_project_evidence
 from .timeline import render_project_timeline
 
 
@@ -32,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     report = sub.add_parser("project-report", help="Render deterministic structural evidence for a project")
     report.add_argument("project_id")
     report.add_argument("--limit", type=int, default=100)
+    evidence_view = sub.add_parser("project-evidence-view", help="Render a compact evidence-labelled project view")
+    evidence_view.add_argument("project_id")
+    evidence_view.add_argument("--limit", type=int, default=50)
     imp = sub.add_parser("import-conversation", help="Import a local conversation transcript")
     imp.add_argument("path", type=Path)
     imp.add_argument("--format", choices=("json", "markdown"), default=None)
@@ -124,6 +128,8 @@ def main() -> int:
             print(f"Discovered {len(projects)} project(s). No files were moved or deleted.")
         elif args.command == "project-report":
             print(_project_report(store, args.project_id, args.limit))
+        elif args.command == "project-evidence-view":
+            print(render_project_evidence(store, args.project_id, args.limit))
         elif args.command == "import-conversation":
             fmt = args.format or ("json" if args.path.suffix.lower() == ".json" else "markdown")
             print(import_json(store, args.path) if fmt == "json" else import_markdown(store, args.path, source=args.source, title=args.title))
