@@ -115,6 +115,21 @@ class DiscoveryTests(unittest.TestCase):
             (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
             self.assertEqual(likely_project_roots(root), [root.resolve()])
 
+    def test_monorepo_keeps_strong_nested_project_boundaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "monorepo"
+            backend = root / "packages" / "backend"
+            frontend = root / "packages" / "frontend"
+            backend.mkdir(parents=True)
+            frontend.mkdir(parents=True)
+            (root / "package.json").write_text("{\"name\":\"workspace\"}\n", encoding="utf-8")
+            (backend / "pyproject.toml").write_text("[project]\nname='backend'\n", encoding="utf-8")
+            (backend / "main.py").write_text("print('backend')\n", encoding="utf-8")
+            (frontend / "package.json").write_text("{\"name\":\"frontend\"}\n", encoding="utf-8")
+            (frontend / "index.js").write_text("console.log('frontend')\n", encoding="utf-8")
+            roots = likely_project_roots(root)
+            self.assertEqual(roots, [root.resolve(), backend.resolve(), frontend.resolve()])
+
 
 if __name__ == "__main__":
     unittest.main()
