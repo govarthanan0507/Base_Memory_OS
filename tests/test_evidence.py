@@ -43,7 +43,11 @@ class EvidenceTests(unittest.TestCase):
                 self.assertEqual(len(store.list_project_events(project_id)), 2)
                 links = store.related(project_id, "has_conversation")
                 self.assertEqual(len(links), 1)
-                self.assertEqual(links[0]["target_id"], "conv-1")
+                canonical_id = store.conn.execute(
+                    "SELECT conversation_id FROM conversations WHERE external_id=?",
+                    ("conv-1",),
+                ).fetchone()["conversation_id"]
+                self.assertEqual(links[0]["target_id"], canonical_id)
             finally:
                 store.close()
 
