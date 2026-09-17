@@ -52,10 +52,10 @@ def extract_observations(snapshot: SourceSnapshot) -> ResearchObservations:
         candidate = href.strip()
         if not candidate:
             continue
-        absolute = urljoin(snapshot.url, candidate)
         try:
+            absolute = urljoin(snapshot.url, candidate)
             links.append(normalize_url(absolute))
-        except ValueError:
+        except (TypeError, ValueError):
             continue
 
     urls: list[str] = []
