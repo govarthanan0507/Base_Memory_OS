@@ -145,9 +145,9 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 **Failure status:** no implementation failure observed in this cycle. The network-free assertion is deliberate protection against accidental I/O during registration.
 
-**Verification:** commits were accepted on `main`. Latest CI verification remains pending; no green status is claimed until a workflow run for the current test-bearing head is observed.
+**Verification:** workflow `tests`, run #186 (`35181985251`), passed across Python 3.11–3.14 for the v0.4 ingestion pipeline.
 
-**Known limitations:** orchestration is library-level only; no CLI command yet. Snapshot capture remains text-only and uses standard-library HTTP. Provider metadata remains URL-derived observation, not remote verification.
+**Known limitations:** snapshot capture remains text-only and uses standard-library HTTP. Provider metadata remains URL-derived observation, not remote verification.
 
 **Evidence commits:**
 - research registration metadata `61531f12992989708e0f09b196e658e909be7914`
@@ -197,11 +197,41 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 
 ---
 
-## 8. CI verification — v0.4 and CLI follow-up
+## 8. Cycle v0.6 — Deterministic structural evidence inspection
 
-**v0.4 pipeline verification:** workflow `tests`, run #186 (`35181985251`), head `90c36bfc433baddd66b9b642589ac4c8ef2575b0`; Python 3.11, 3.12, 3.13 and 3.14 all completed successfully.
+**Date:** 2026-09-17
 
-**CLI follow-up:** a later workflow run was observed at head `3da32593cb99b20393dd32bb7cbcf468d73db5c2` as run #188 and was still in progress at the time of this log update. Python 3.11 had completed successfully and the other matrix jobs were completing; final run conclusion is intentionally not asserted here.
+**Starting state:** v0.4 ingestion could preserve a bounded snapshot and v0.5 exposed the ingestion boundary through the CLI. The system still lacked a deterministic, network-free way to inspect captured evidence for basic source structure before semantic extraction.
+
+**Objective:** add a narrow evidence-inspection layer that extracts reproducible title, heading, hyperlink and absolute-URL observations while preserving snapshot provenance.
+
+**Exact implementation paths:**
+- `src/memory_os/research_extract.py`
+- `tests/test_research_extract.py`
+- `docs/implementations/IMPL-04-research-memory/BRD.md`
+- `docs/implementations/IMPL-04-research-memory/FRD.md`
+- `docs/implementations/IMPL-04-research-memory/PRD.md`
+- `docs/implementations/IMPL-04-research-memory/TRD.md`
+- `README.md`
+- this log
+
+**Implementation:** added `ResearchObservations` and `extract_observations()`. The extractor operates only on an existing `SourceSnapshot`; it performs no network access. HTML-like evidence is inspected for `<title>`, headings, hyperlinks and explicit absolute URLs. Relative links are resolved against the snapshot URL, normalized through the existing URL boundary, and deduplicated while preserving first-observed order. Results carry snapshot content hash and capture timestamp as provenance.
+
+**Test failure:** the first CI run for the structural-extraction cycle failed on `test_ignores_malformed_and_empty_links` in Python 3.12. The test expected `::bad` to be rejected, but URL resolution correctly treated it as a relative path and produced `https://example.org/::bad`.
+
+**Root cause:** the regression test incorrectly classified a syntactically resolvable relative reference as malformed. The implementation was behaving consistently with URL resolution rules.
+
+**Fix:** replaced the test fixture with an actually malformed absolute URL, `https://[bad`, which the canonical URL validator rejects. No production code change was required.
+
+**Regression protection:** the corrected test now verifies that empty and genuinely malformed absolute links are ignored, while valid relative links remain supported by the positive extraction test.
+
+**CI evidence:** run #200 (`35183355300`) at head `6323e97740836a1518fa5e67a1b1d1cbf074f9a0` failed in Python 3.12 with one assertion; the other matrix jobs were cancelled after the failure. This failure is preserved here rather than hidden.
+
+**Remediation commit:** corrected test `84290f3ee5d4f45dcf7296f8b38d587ee8fb954b`.
+
+**Current verification:** the remediation commit has been pushed; its replacement CI run is pending and will be recorded separately.
+
+**Known limitations:** structural parsing is intentionally lightweight and not a full HTML parser. It does not establish semantic relationships, source truth, authorship, popularity or correctness.
 
 ---
 
@@ -214,6 +244,7 @@ The adapter performs no HTTP requests and does not infer titles, authors, view c
 | v0.3 | Documentation update returned GitHub 409 | Stale file SHA | Re-fetch current SHA and retry | Fetch-before-update discipline |
 | v0.4 | None observed | — | — | Offline pipeline tests + capture=False no-network assertion |
 | v0.5 | Log update returned GitHub 409 | Log changed between fetch and update | Re-fetched current blob SHA and retried | Fetch-before-update discipline |
+| v0.6 | Structural extraction test rejected valid relative URL | Incorrect test fixture, not production defect | Replace with genuinely malformed absolute URL | Positive relative-link test + malformed-link regression |
 
 ## 10. Current evidence boundary
 
@@ -230,6 +261,8 @@ HASHED SNAPSHOT
  ↓
 PRESERVED EVIDENCE
  ↓
+STRUCTURAL OBSERVATION ── evidence-bound
+ ↓
 PROVENANCE ATTACHMENT
  ↓
 SEMANTIC UNDERSTANDING  ← future
@@ -237,4 +270,4 @@ SEMANTIC UNDERSTANDING  ← future
 
 ## 11. Next step
 
-Wait for final CI verification of the CLI test-bearing head, then begin semantic research extraction behind the preserved evidence boundary. Provider-specific remote metadata should remain an adapter concern and should not leak into the memory core.
+Verify the remediation head in CI. Once green, use this deterministic evidence layer as the input boundary for semantic research extraction: identify referenced repositories, tools, entities, ideas and claims while retaining links back to the exact source snapshot and observation that produced each candidate.
