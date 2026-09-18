@@ -1,7 +1,11 @@
-# Execution Protocol — V0.1-FIX-01
+# Execution Protocol — V1 E1-1/E1-2
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
-template, by the developer.
+template, by the developer. Build/run/environment facts below are
+unchanged from the V0.1-FIX-01 cycle (this PR touches only
+`continuity.py`/`test_continuity.py` — no new dependency, no runtime
+change) and are re-confirmed against `.github/workflows/tests.yml` and
+`pyproject.toml` for this cycle, not copied blind.
 
 ## Build / run instructions
 
@@ -37,24 +41,24 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-This fix cycle does not change performance-sensitive code paths (it
-touches error handling and logging, not the storage/query layer), so
-no new numeric targets are introduced beyond what the original V0.1
-cycle already set. If the original cycle did not set explicit targets,
-that gap is unchanged by this cycle and should be raised by QA as a
-carried-forward, not a new, gap.
+This cycle adds two read-path query functions
+(`find_project_by_name`, `project_completion_signal`) and does not
+touch write-path or storage-layer code, so no new numeric targets are
+introduced beyond what the original V0.1 cycle already set. If the
+original cycle did not set explicit targets, that gap is unchanged by
+this cycle and should be raised by QA as a carried-forward, not a new,
+gap. One real, cycle-specific note: `find_project_by_name` iterates
+`store.list_projects(limit=200)` doing a substring match per project —
+QA should note this as a scale ceiling (not evaluated past 200
+projects) rather than assume it's unbounded.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.
-- **Target latency (p50/p95/p99):** Not formally targeted — CLI
-  commands complete interactively (sub-second for the operations this
-  fix touches).
+- **Target latency (p50/p95/p99):** Not formally targeted — these are
+  interactive, in-process function calls (sub-second expected).
 - **Target throughput:** Not applicable (interactive local CLI, not a
   service).
-- **Target error rate ceiling:** N/A for this cycle's scope — this
-  cycle's entire point is that previously-unhandled error paths now
-  fail cleanly (exit code 1, one-line message) instead of crashing with
-  a raw traceback.
+- **Target error rate ceiling:** N/A for this cycle's scope.
 - **Soak duration:** Not applicable.
 
 ## Observability
