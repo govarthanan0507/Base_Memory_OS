@@ -1,4 +1,4 @@
-# QA Contract — V2 E4 (personal-life-and-project-companion)
+# QA Contract — V3 E5 (personal-life-and-project-companion)
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/01_QA_CONTRACT.md`'s
 template, by the developer side of this handoff.
@@ -8,34 +8,41 @@ template, by the developer side of this handoff.
 
 ## Product
 
-- **Name / version being tested:** base-memory-os — epic E4
-  (Emotional/Behavioral Signal Extraction), V2's second epic. Ran in
-  parallel with QA's review of PRs #11 (GUI shell) and #13 (E3) —
-  this PR touches none of the same code as either.
-- **Exact commit or build identifier:** `3fb102f` on branch
-  `feature/e4-behavioral-signal` (open a PR before sending) into `main`.
+- **Name / version being tested:** base-memory-os — epic E5
+  (Proactive Focus Guidance), V3's only epic. Ran while QA's review
+  of PR #15 (E4) was still open — this PR touches none of the same
+  code as E4 and has no dependency on it (E5's own hard dependency,
+  per `EPIC_SELECTION.md`, is on E1 and E3, both already merged into
+  `main`).
+- **Exact commit or build identifier:** `94b3eee` on branch
+  `feature/e5-proactive-focus-guidance` (open a PR before sending)
+  into `main`.
 - **Cycle type:** `FULL_AUDIT`.
 - **If `FIX_VERIFICATION`:** N/A.
 
 ## Scope
 
 - **In scope:**
-  - `src/memory_os/emotional_signal.py` (new) —
-    `extract_behavioral_signal`, `render_behavioral_signal`,
-    `BehavioralSignal`.
-  - `src/memory_os/cli.py` — one new command, `emotional-signal`.
-  - `tests/test_emotional_signal.py` (new, 7 tests).
-  - `projects/.../documents/E4_HARD_CONSTRAINTS_PRECHECK.md`,
-    `E4_REQUIREMENTS.md` (Tier 2 design note — Backend-Architect +
+  - `src/memory_os/focus_guidance.py` (new) — `detect_idea_hopping`,
+    `cross_project_completion`, `render_focus_guidance`,
+    `IdeaHopSignal`.
+  - `src/memory_os/cli.py` — one new command, `focus-guidance
+    [--window] [--limit]`.
+  - `tests/test_focus_guidance.py` (new, 8 tests).
+  - `projects/.../documents/E5_HARD_CONSTRAINTS_PRECHECK.md`,
+    `E5_REQUIREMENTS.md` (Tier 2 design note — Backend-Architect +
     Data-Architect, no full debate; no disagreement to resolve).
-- **Out of scope, and why:** no cross-conversation/per-project
-  aggregation (explicitly E5's territory per `E4_REQUIREMENTS.md`'s
-  non-goals). No new dependency, no new table — QA should confirm
-  both via `git diff main...feature/e4-behavioral-signal --stat` and
-  the module's own source (a test already greps for this, but
-  independent confirmation is the point of QA existing).
+- **Out of scope, and why:** no unprompted/background notification
+  mechanism — explicitly resolved as out of scope in
+  `E5_HARD_CONSTRAINTS_PRECHECK.md`'s Category 7 resolution (this is
+  an on-demand CLI report only). No absolute time-to-finish estimate
+  — `E5_REQUIREMENTS.md`'s non-goals name this directly. No use of
+  embeddings/a model for hop detection — see
+  `projects/.../documents/SEMANTIC_RETRIEVAL_DECISION.md`, a separate
+  product-owner decision superseding an earlier feasibility
+  assumption; not this PR's own scope to revisit.
 - **Capabilities expected to apply:** functional correctness only —
-  pure read path, no new write path.
+  pure read path, no new write path, no new table.
 
 ## Authorization boundaries
 
@@ -50,10 +57,8 @@ template, by the developer side of this handoff.
 
 - [x] Baseline-only, not a penetration test. Nothing new to flag —
       this feature adds no new input surface (it reads
-      already-stored conversation text) and no new output surface
-      beyond plain-text CLI output (no HTML/rich-text rendering here,
-      unlike `gui.py`'s candidate cards — nothing analogous to F-06
-      applies to this module).
+      already-stored `project_events`/`projects` rows) and no new
+      output surface beyond plain-text CLI output.
 
 ## Release authority
 
