@@ -107,14 +107,31 @@ offered, not a self-issued verdict.
   blank role/content (`if not role.strip() or not content.strip():
   raise ValueError(...)`). Confirmed by reading both files directly —
   `core.py` and `importers.py` are unchanged from before this cycle.
-- **fix_applied:** None. Deliberately not addressed this cycle — this
-  is a product decision (should empty/blank memory content be allowed
-  at all, and under what conditions), not something a developer should
-  resolve unilaterally by picking a validation rule. Recorded here so
-  it's not mistaken for an oversight.
-- **status:** OPEN — explicitly not targeted by this fix cycle. Needs
-  an explicit decision from whoever owns that product call before any
-  fix is attempted.
+- **fix_applied (added after QA's V0.1-FIX-01 review, same cycle):**
+  Product owner made the call directly (empty/blank memory content
+  should be rejected, matching the import path's existing behavior) —
+  this was a small, easy, low-risk fix, decided live rather than left
+  to age as a tracked risk. Added `MemoryStore._validate_content()`
+  (`core.py`), called from `add_memory()` before insert, matching the
+  existing `_validate_confidence()` pattern already used in the same
+  method — raises `ValueError("memory content must not be empty")` on
+  blank/whitespace-only content. This flows through F-01's existing
+  centralized error handling for free (clean `Error: ...` message,
+  exit 1, logged at WARNING per F-02) — no new error-handling code
+  needed.
+  **Scope note:** only the "empty" half of F-03 is fixed. The
+  "oversized" half is NOT addressed — there is no defined maximum
+  content size anywhere in this product to enforce against; inventing
+  an arbitrary number would not be fixing a real gap. If a size limit
+  is wanted, that's a separate, still-open product decision.
+- **evidence_offered:** `memory-os --db <path> add-memory "   "` now
+  exits 1 with `Error: memory content must not be empty` and a
+  WARNING-level log entry with traceback. Non-empty content still
+  writes successfully (exit 0). Full test suite re-run after the
+  change: 74/74, no regression.
+- **status:** OPEN (awaiting QA re-verification) — partially resolved:
+  empty-content rejection fixed; oversized-content limit still
+  genuinely undefined, not silently dropped.
 
 ---
 
