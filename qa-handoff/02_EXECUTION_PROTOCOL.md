@@ -1,32 +1,52 @@
-# Execution Protocol — V1 E2
+# Execution Protocol — V1 GUI shell
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
-template, by the developer. Build/run/environment facts below are
-unchanged from the prior cycles (this PR adds one new module,
-`project_classification.py`, plus a new table — no new third-party
-dependency, no runtime change, per `E2_HARD_CONSTRAINTS_PRECHECK.md`'s
-resolution of Hard Constraint #9) and are re-confirmed against
+template, by the developer. Re-confirmed against
 `.github/workflows/tests.yml` and `pyproject.toml` for this cycle, not
-copied blind.
+copied blind — this is the first cycle with a real environment
+dependency beyond pure Python.
 
 ## Build / run instructions
 
-- **Exact build command(s):** `pip install -e .` (setuptools, `src/`
-  layout, no compiled/native dependencies — pure Python, zero runtime
-  dependencies per `pyproject.toml`).
+- **Exact build command(s):**
+  - Base CLI (unchanged): `pip install -e .` — still zero required
+    dependencies.
+  - GUI (new this cycle): `pip install -e ".[gui]"` — installs
+    `PySide6-Essentials` (not the `PySide6` metapackage; see
+    `01_QA_CONTRACT.md`'s dependency-footprint note).
 - **Exact run command(s):**
   - Test suite: `PYTHONPATH=src python -m unittest discover -s tests -v`
-    (matches `.github/workflows/tests.yml` exactly — same command CI runs).
+    (matches `.github/workflows/tests.yml` exactly).
   - CLI: `memory-os <command>` once installed, or
     `python -m memory_os.cli <command>` from source.
-- **Required runtime/OS/versions:** Python 3.11, 3.12, 3.13, or 3.14
-  (CI matrix runs all four). No OS-specific dependency — pure Python,
-  local SQLite only.
-- **Required environment variables / secrets (names only):** None. No
-  network calls, no external service credentials — fully local-first.
-- **Required external services and how they're mocked/stubbed for QA:**
-  None. This tool has zero external service dependency by design (see
-  README's "local-first, vendor-independent" framing).
+  - GUI: `memory-os gui` (requires the `gui` extra installed; a clean
+    `ValueError` with the install instructions if it isn't).
+- **Required runtime/OS/versions:** Python 3.11, 3.12, 3.13, or 3.14.
+  The GUI's target platform is Windows (per `UI_HARD_CONSTRAINTS_PRECHECK.md`'s
+  Category 12), but development/CI runs on Linux — `PySide6-Essentials`
+  is cross-platform, no Windows-specific code exists yet.
+- **New this cycle — system-level requirement for the `gui` extra**:
+  on Linux, `PySide6.QtWidgets` fails to import at all
+  (`ImportError: libEGL.so.1: cannot open shared object file`) without
+  `libegl1`/`libgl1`/`libopengl0` installed at the OS level — a real
+  gap found and fixed in `.github/workflows/tests.yml` this cycle, not
+  a PySide6 bug. QA's environment needs these too, or GUI tests will
+  fail at import time rather than at a test assertion. Not expected to
+  be an issue on the actual Windows target (EGL/OpenGL ship with
+  standard graphics drivers there) — flagged as a Linux dev/CI/QA
+  environment note, not a product requirement.
+- **Headless testing**: `QT_QPA_PLATFORM=offscreen` (set in CI, must
+  be set manually if QA runs tests directly) lets Qt run with no real
+  display — no `Xvfb` needed for the test suite itself, though `Xvfb`/
+  `xvfb-run` are also available in this dev environment if QA wants an
+  actual rendered screenshot for visual verification (this is how the
+  developer side verified the redesign — see PR #11's description for
+  the before/after screenshots referenced there).
+- **Required environment variables / secrets:** None beyond
+  `QT_QPA_PLATFORM=offscreen` for headless test runs. No network
+  calls, no external service credentials — fully local-first,
+  unchanged.
+- **Required external services:** None.
 
 ## Known environment differences from production
 
@@ -43,19 +63,11 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-This cycle adds a write path (`classify_artifacts_against_projects`
-registers an artifact and scores it against every existing project
-per scanned file). No new numeric targets are introduced beyond what
-prior cycles already set, but two real, cycle-specific scale notes:
-
-- `classify_artifacts_against_projects`'s per-file cost scales with
-  the number of existing projects (it re-tokenizes every project's
-  linked-artifact names per file scanned, per project) — not
-  evaluated against a large project count or a large folder; flagged
-  as a scale ceiling, not measured as a hard limit.
-- Content-snippet reads are capped at `MAX_HASH_BYTES` (reused from
-  `discovery.py`), consistent with the E2_TRD.md's Security-Architect
-  requirement against unbounded reads.
+No new numeric targets this cycle — the GUI is a thin presentation
+layer over already-scoped backend calls. One new, real note: the
+project sidebar calls `store.list_projects(limit=200)` on every
+window open — not evaluated past 200 projects, same ceiling
+`continuity.find_project_by_name` already carries.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.
