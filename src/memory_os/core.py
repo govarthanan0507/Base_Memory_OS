@@ -136,8 +136,14 @@ class MemoryStore:
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
 
+    @staticmethod
+    def _validate_content(content: str) -> None:
+        if not content.strip():
+            raise ValueError("memory content must not be empty")
+
     def add_memory(self, memory: Memory) -> str:
         self._validate_confidence(memory.confidence)
+        self._validate_content(memory.content)
         self.conn.execute(
             "INSERT OR REPLACE INTO memories VALUES (?, ?, ?, ?, ?, ?, ?)",
             (memory.memory_id, memory.content, memory.memory_type, memory.source,
