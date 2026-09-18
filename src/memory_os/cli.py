@@ -14,6 +14,7 @@ from .discovery import scan_workspace
 from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
 from .logging_setup import configure_logging, get_logger
+from .project_classification import classify_artifacts_against_projects
 from .project_evidence import render_project_evidence
 from .research import ResearchSource
 from .research_pipeline import ingest_research_source
@@ -103,6 +104,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_capture.add_argument("--snapshot-dir", type=Path, required=True)
     research_capture.add_argument("--timeout", type=float, default=10.0)
     research_capture.add_argument("--max-bytes", type=int, default=2_000_000)
+    classify = sub.add_parser("classify-folder", help="Scan a designated folder and propose artifact-project mappings")
+    classify.add_argument("folder", type=Path)
+    review_artifact = sub.add_parser("review-artifact-candidate", help="Accept or reject an artifact-project candidate")
+    review_artifact.add_argument("candidate_id")
+    review_artifact.add_argument("decision", choices=("accepted", "rejected"))
     return parser
 
 
@@ -229,6 +235,22 @@ def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
             print(event_id)
     elif args.command in {"add-research-source", "capture-research-source"}:
         _research_command(store, args)
+    elif args.command == "classify-folder":
+        result = classify_artifacts_against_projects(args.folder, store)
+        logger.info(
+            "classify-folder: %s -> %d artifact(s), %d candidate(s), %d unclassified, %d skipped",
+            args.folder, result.artifacts_registered, result.candidates_created,
+            result.unclassified_count, len(result.skipped),
+        )
+        print(
+            f"Registered {result.artifacts_registered} artifact(s): "
+            f"{result.candidates_created} candidate(s) proposed, "
+            f"{result.unclassified_count} unclassified, {len(result.skipped)} skipped"
+        )
+    elif args.command == "review-artifact-candidate":
+        result = store.review_artifact_project_candidate(args.candidate_id, args.decision)
+        logger.info("review-artifact-candidate: %s -> %s", args.candidate_id, args.decision)
+        print(result)
 
 
 def main() -> int:
