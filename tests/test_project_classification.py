@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from memory_os.core import MemoryStore, Project
-from memory_os.project_classification import classify_artifacts_against_projects
+from memory_os.project_classification import classify_artifacts_against_projects, list_candidate_details
 
 
 class ProjectClassificationTests(unittest.TestCase):
@@ -101,6 +101,21 @@ class ProjectClassificationTests(unittest.TestCase):
         source = Path(mod.__file__).read_text(encoding="utf-8")
         for banned in ("socket", "urllib", "requests", "http.client"):
             self.assertNotIn(banned, source)
+
+    def test_list_candidate_details_joins_artifact_and_project_names(self):
+        self.store.add_project(Project("Video Understanding", str(self.tmp_path / "video-understanding")))
+        (self.scan_dir / "video_understanding_notes.md").write_text(
+            "video understanding notes", encoding="utf-8"
+        )
+        classify_artifacts_against_projects(self.scan_dir, self.store)
+
+        details = list_candidate_details(self.store, "candidate")
+
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0]["artifact_name"], "video_understanding_notes.md")
+        self.assertEqual(details[0]["project_name"], "Video Understanding")
+        self.assertGreaterEqual(details[0]["confidence"], 0.3)
+        self.assertIn("candidate_id", details[0])
 
 
 if __name__ == "__main__":

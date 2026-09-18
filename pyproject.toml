@@ -9,6 +9,14 @@ description = "Local-first personal work memory OS"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+# PySide6-Essentials, not the PySide6 metapackage - the metapackage
+# pulls in PySide6-Addons (QtWebEngine/Chromium, ~175MB) unconditionally
+# even though the GUI (gui.py) only uses native QtWidgets, per
+# UI_DEBATE.md's reconvene addendum. Verified directly: Essentials'
+# own declared requirement is just shiboken6.
+gui = ["PySide6-Essentials>=6.11,<7"]
+
 [project.scripts]
 memory-os = "memory_os.cli:main"
 
