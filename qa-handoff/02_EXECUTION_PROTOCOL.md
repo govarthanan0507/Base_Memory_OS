@@ -1,13 +1,15 @@
-# Execution Protocol — V1 E2
+# Execution Protocol — V2 E3
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
 template, by the developer. Build/run/environment facts below are
-unchanged from the prior cycles (this PR adds one new module,
-`project_classification.py`, plus a new table — no new third-party
-dependency, no runtime change, per `E2_HARD_CONSTRAINTS_PRECHECK.md`'s
-resolution of Hard Constraint #9) and are re-confirmed against
-`.github/workflows/tests.yml` and `pyproject.toml` for this cycle, not
-copied blind.
+unchanged from every prior cycle — this epic adds no new dependency,
+no new runtime requirement, no schema change (Tier 1 per
+`E3_REQUIREMENTS.md`'s own tiering determination) — re-confirmed
+against `.github/workflows/tests.yml` and `pyproject.toml` for this
+cycle, not copied blind. Note: this branch was cut from `main` before
+PR #11 (the GUI shell) merged, so it does not include the `gui` extra
+or its system-library requirement — that's a separate PR's concern,
+not missing from this one.
 
 ## Build / run instructions
 
@@ -43,19 +45,10 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-This cycle adds a write path (`classify_artifacts_against_projects`
-registers an artifact and scores it against every existing project
-per scanned file). No new numeric targets are introduced beyond what
-prior cycles already set, but two real, cycle-specific scale notes:
-
-- `classify_artifacts_against_projects`'s per-file cost scales with
-  the number of existing projects (it re-tokenizes every project's
-  linked-artifact names per file scanned, per project) — not
-  evaluated against a large project count or a large folder; flagged
-  as a scale ceiling, not measured as a hard limit.
-- Content-snippet reads are capped at `MAX_HASH_BYTES` (reused from
-  `discovery.py`), consistent with the E2_TRD.md's Security-Architect
-  requirement against unbounded reads.
+No new numeric targets this cycle — E3 adds no new write path (it
+reuses `relate()`, unchanged) and no new read-path scale concern
+beyond what already exists (`_linked_entities`' own `limit` parameter,
+already bounded, unchanged by this cycle).
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.
