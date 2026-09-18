@@ -155,82 +155,6 @@ def render_reentry_brief(store: MemoryStore, conversation_id: str, limit: int = 
     return "\n".join(lines)
 
 
-def project_completion_signal(store: MemoryStore, project_id: str) -> dict[str, Any]:
-    """A per-project completion/confidence signal, per E1-2.
-
-    Scoped strictly to this project's own internal state (artifact
-    count, open candidate count, last recorded activity) — never an
-    idea-to-idea relationship signal, which is E3's territory
-    (WHOLE_PRODUCT_VERDICT.md's Finding 1).
-    """
-    ensure_schema(store)
-    row = store.conn.execute(
-        "SELECT project_id FROM projects WHERE project_id=?", (project_id,)
-    ).fetchone()
-    if row is None:
-        raise KeyError(f"project not found: {project_id}")
-
-    linked = _linked_entities(store, project_id, limit=200)
-    artifact_count = sum(1 for x in linked if x["kind"] == "artifact")
-    open_candidates = _open_project_candidates(store, project_id, limit=200)
-    open_count = len(open_candidates)
-    events = list(
-        store.conn.execute(
-            "SELECT timestamp FROM project_events WHERE project_id=? "
-            "ORDER BY timestamp DESC LIMIT 1",
-            (project_id,),
-        )
-    )
-    last_activity_at = events[0]["timestamp"] if events else None
-
-    if artifact_count == 0 and open_count == 0 and last_activity_at is None:
-        return {"available": False, "reason": "no recorded artifacts, candidates, or events for this project yet"}
-
-    if artifact_count == 0:
-        label = "unclear — no linked artifacts yet"
-    elif open_count == 0:
-        label = "settled — no open candidates pending review"
-    else:
-        ratio = open_count / (artifact_count + open_count)
-        label = "actively evolving" if ratio >= 0.34 else "mostly settled"
-
-    return {
-        "available": True,
-        "artifact_count": artifact_count,
-        "open_candidate_count": open_count,
-        "last_activity_at": last_activity_at,
-        "label": label,
-    }
-
-
-def find_project_by_name(store: MemoryStore, text: str, limit: int = 200) -> str | None:
-    """Best-effort project lookup from free text, for `submit_query` (UI_TRD.md)."""
-    ensure_schema(store)
-    needle = text.strip().lower()
-    if not needle:
-        return None
-    for row in store.list_projects(limit=limit):
-        if row["name"].lower() in needle or needle in row["name"].lower():
-            return row["project_id"]
-    return None
-
-
-def submit_query(store: MemoryStore, text: str) -> str:
-    """Route a free-text status question to a project's re-entry brief (E1-1).
-
-    Backs the GUI's `submit_query` bridge function (UI_TRD.md) — never
-    called with a default/blanket target, only ever against whatever
-    project the text names.
-    """
-    project_id = find_project_by_name(store, text)
-    if project_id is None:
-        return (
-            "I couldn't match that to a known project. Try naming the "
-            "project directly (e.g. \"what's the status of <project name>\")."
-        )
-    return render_project_reentry_brief(store, project_id)
-
-
 def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int = 50) -> str:
     packet = project_context(store, project_id, limit)
     project = packet["project"]
@@ -243,17 +167,6 @@ def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int
     ]
     if project.get("summary"):
         lines.append(f"Summary: {project['summary']}")
-
-    signal = project_completion_signal(store, project_id)
-    lines += ["", "## Completion signal"]
-    if signal["available"]:
-        lines.append(
-            f"- {signal['label']} — {signal['artifact_count']} artifact(s), "
-            f"{signal['open_candidate_count']} open candidate(s), "
-            f"last activity: {signal['last_activity_at'] or 'none recorded'}"
-        )
-    else:
-        lines.append(f"- Signal unavailable — {signal['reason']}")
 
     latest = packet["latest_conversation"]
     lines += ["", "## Last known conversation"]
@@ -295,11 +208,8 @@ def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int
 
 __all__ = [
     "conversation_context",
-    "find_project_by_name",
-    "project_completion_signal",
     "project_context",
     "related_records",
     "render_project_reentry_brief",
     "render_reentry_brief",
-    "submit_query",
 ]
