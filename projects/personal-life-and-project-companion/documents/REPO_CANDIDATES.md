@@ -51,6 +51,32 @@ and `PRE_MORTEM.md`'s named risk accurate and, if anything, slightly
 reinforced by this deeper look — this remains the one piece requiring
 real, mostly-original build effort.
 
+## VERIFIED — UI-shell candidates (checked while designing E1/E2's desktop GUI)
+
+Different question from the sections above: not "does this solve the
+memory/classification gap," but "does an open-source PySide6 chat-
+styled desktop shell already exist that `UI_TRD.md`'s GUI could adapt
+instead of building from scratch." Checked via direct fetch, same
+discipline:
+
+| Name | Repo | Stars | License | Qt binding | Chat rendering | Relevance |
+|---|---|---|---|---|---|---|
+| **VividNode** | `yjg30737/pyqt-openai` | 149 | MIT | PySide6 | **Native Qt widgets**, not `QWebEngineView` | An LLM-chat-client app (talks to OpenAI/Claude/Gemini/Llama APIs) — different job than ours (no model in the loop; our "chat" wraps deterministic local functions). Its widget-based bubble rendering is a real, working alternative to `UI_TRD.md`'s `QWebEngineView` decision — see note below. |
+| **NutellaLLM_GUI** | `BriannaThorez/NutellaLLM_GUI` | 7 | GPL-3.0 | PySide6/PySide2/PyQt5 | **Native Qt widgets**, not `QWebEngineView` | Fork of a ChatGPT-API GUI. Same "LLM client, not our use case" gap as VividNode. GPL-3.0 would matter if code were adopted verbatim and this project ever ships/distributes (per `REUSE_AND_LICENSE_RULE.md`) — not blocking now (personal, non-distributed), but not a silent non-issue either. |
+
+**Real finding, not just "no exact match"**: neither verified
+candidate — nor anything else surfaced by this search — actually
+builds a chat UI via an embedded `QWebEngineView`. The two closest
+real-world precedents both went the opposite way: native Qt widgets
+for the chat-bubble look, no Chromium dependency. `UI_DEBATE.md`'s
+Frontend Architect reasoned `QWebEngineView` would look better than
+hand-built widgets would — that reasoning was never actually checked
+against real precedent, and real precedent points the other way. This
+doesn't overturn the decision by itself (both found repos are LLM
+clients, not proof that widgets fail for our narrower need), but it's
+evidence Design Council should see before Development locks in
+`QWebEngineView`, not evidence quietly left out of the record.
+
 ## Instruction to Design Council / Repo Analyzer, when it reconvenes
 
 1. Re-verify every "VERIFIED" entry above directly before relying on
