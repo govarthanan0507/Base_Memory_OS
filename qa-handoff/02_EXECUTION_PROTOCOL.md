@@ -1,13 +1,11 @@
-# Execution Protocol — V1 E2
+# Execution Protocol — V2 E4
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
-template, by the developer. Build/run/environment facts below are
-unchanged from the prior cycles (this PR adds one new module,
-`project_classification.py`, plus a new table — no new third-party
-dependency, no runtime change, per `E2_HARD_CONSTRAINTS_PRECHECK.md`'s
-resolution of Hard Constraint #9) and are re-confirmed against
-`.github/workflows/tests.yml` and `pyproject.toml` for this cycle, not
-copied blind.
+template, by the developer. Unchanged from every prior cycle — E4
+adds one new pure-Python module with zero new dependency
+(`E4_HARD_CONSTRAINTS_PRECHECK.md`'s resolution) and no schema
+change. This branch was also cut before PR #11 (GUI shell) merged, so
+it carries no `gui` extra — a separate PR's concern, not missing.
 
 ## Build / run instructions
 
@@ -43,19 +41,11 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-This cycle adds a write path (`classify_artifacts_against_projects`
-registers an artifact and scores it against every existing project
-per scanned file). No new numeric targets are introduced beyond what
-prior cycles already set, but two real, cycle-specific scale notes:
-
-- `classify_artifacts_against_projects`'s per-file cost scales with
-  the number of existing projects (it re-tokenizes every project's
-  linked-artifact names per file scanned, per project) — not
-  evaluated against a large project count or a large folder; flagged
-  as a scale ceiling, not measured as a hard limit.
-- Content-snippet reads are capped at `MAX_HASH_BYTES` (reused from
-  `discovery.py`), consistent with the E2_TRD.md's Security-Architect
-  requirement against unbounded reads.
+No new numeric targets this cycle. One real, cycle-specific note:
+`extract_behavioral_signal`'s cost scales with a conversation's total
+message text length (the lexicon match is a linear scan) — not
+evaluated against an unusually large conversation; flagged as a
+scale ceiling, not measured as a hard limit.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.
