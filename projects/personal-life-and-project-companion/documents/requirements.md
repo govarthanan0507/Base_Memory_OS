@@ -23,7 +23,8 @@ Cost ceiling inherited: $0 direct spend (FEASIBILITY_REPORT.md §2).
 Source documents: documents/BUSINESS_CASE.md, FEASIBILITY_REPORT.md,
   MARKET_RESEARCH.md, PRE_MORTEM.md, AUDIT_REPORT.md,
   REPO_CANDIDATES.md, DECISION_CONTRACT.md, EPIC_SELECTION.md,
-  ROADMAP.md, WHOLE_PRODUCT_VERDICT.md
+  ROADMAP.md, WHOLE_PRODUCT_VERDICT.md, UI_HARD_CONSTRAINTS_PRECHECK.md,
+  UI_DEBATE.md, UI_TRD.md
 ```
 
 ## Design Council human gate — approval receipt
@@ -38,6 +39,22 @@ The one condition carried forward is not a revision to either design —
 it's the `WHOLE_PRODUCT_ARCHITECTURE_GATE.md` verdict's own named risk,
 inherited into E1's story below (see E1-2's non-goal and constraint).
 
+## Re-entry: delivery mechanism changed from CLI to a chat-style desktop GUI
+
+After the human gate above, the user stated CLI is not usable for them
+and asked for a desktop GUI resembling this chat environment. This is
+not a revision to E1/E2's functional scope — it changes *how* the user
+interacts with both epics. Routed through Design Council per
+`UI_HARD_CONSTRAINTS_PRECHECK.md` (licensing, new dependency, platform
+— all resolved) and `UI_DEBATE.md`/`UI_TRD.md` (a PySide6 desktop
+window embedding a local, chat-styled `QWebEngineView`, calling the
+same underlying `MemoryStore`/`discovery.py`/`continuity.py` functions;
+`cli.py`'s existing commands are kept, not replaced). Acceptance
+criteria below that named a specific CLI command are updated to name
+the GUI's chat-thread affordance instead — the *behavior* each
+criterion protects is unchanged, only the previously-assumed mechanism
+is corrected.
+
 ## Epic: E1 — Project Status & Re-entry Briefing
 
 Traces to: `EPIC_SELECTION.md`'s E1 (MUST HAVE), extending
@@ -49,7 +66,7 @@ already exist and cover most of this epic's ground).
 
 ```text
 As a returning user who has stepped away from a project
-I want an accurate, up-to-date status briefing for that project when I ask
+I want to ask for that project's status in the chat-style GUI and get an accurate, up-to-date briefing back
 So that I don't have to reconstruct context from memory before I can resume work
 ```
 
@@ -57,11 +74,12 @@ So that I don't have to reconstruct context from memory before I can resume work
 
 **Acceptance criteria**:
 - [ ] Given a project with existing artifacts/relations/timeline data,
-      when the user asks for that project's status, then the briefing
+      when the user types a status question in the GUI's chat thread
+      (`submit_query`, per `UI_TRD.md`), then the reply message
       reflects the current state of that data (no stale cache).
 - [ ] Given a project with no recorded activity yet, when the user asks
-      for its status, then the briefing says so plainly rather than
-      returning an empty or misleading response.
+      for its status, then the reply message says so plainly rather
+      than returning an empty or misleading response.
 - [ ] The briefing is generated on demand, from internal state only —
       nothing about project status is written back to disk as a
       separate document (per the inherited scope boundary above).
@@ -168,7 +186,7 @@ So that I don't have to manually sort files myself
 
 ```text
 As a user reviewing proposed file-to-project mappings
-I want to accept or reject each candidate mapping through the CLI
+I want to accept or reject each candidate directly on its chat message, via Accept/Reject buttons
 So that nothing gets linked to a project without my explicit confirmation
 ```
 
@@ -176,19 +194,22 @@ So that nothing gets linked to a project without my explicit confirmation
 
 **Acceptance criteria**:
 - [ ] No artifact is linked to a project without an explicit accept —
-      verified directly: a `relate()` call only ever occurs after a
-      user-issued accept (per `E2_TRD.md`'s classification logic step
-      4), never during the scan itself.
-- [ ] Given the user accepts a candidate, when the acceptance is
-      recorded, then a real, queryable link is created and visible in
-      that project's status briefing (E1).
-- [ ] Given the user rejects a candidate, when the rejection is
-      recorded, then it is marked rejected, never deleted, and does
-      not resurface unchanged on a later scan of the same,
-      content-unchanged file.
-- [ ] `memory-os review-artifact-candidate <candidate_id> <accept|reject>`
-      mirrors the existing `review-candidate` command's shape, per
-      `E2_TRD.md`'s integration points.
+      verified directly: a `relate()` call only ever occurs after the
+      user clicks Accept on a candidate card (`respond_to_candidate`,
+      per `UI_TRD.md`'s closed bridge function list), never during the
+      scan itself.
+- [ ] Given the user clicks Accept on a candidate card, when the
+      acceptance is recorded, then a real, queryable link is created,
+      the card visibly updates (e.g. grayed out / marked accepted),
+      and the link is visible in that project's status briefing (E1).
+- [ ] Given the user clicks Reject, when the rejection is recorded,
+      then it is marked rejected, never deleted, and does not
+      resurface unchanged as a new candidate card on a later scan of
+      the same, content-unchanged file.
+- [ ] `respond_to_candidate`/`start_scan` (`UI_TRD.md`) are the only
+      GUI-side entry points into this flow; `cli.py`'s existing
+      `review-artifact-candidate`/`classify-folder` commands remain
+      available unchanged as a scriptable alternative front end.
 
 **Trace**: E1-1's briefing (E1) is the surface where E2-3's accepted
 links become visible — E2 depends on E1 existing for this
