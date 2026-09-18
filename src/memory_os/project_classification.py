@@ -163,4 +163,33 @@ def classify_artifacts_against_projects(folder: str | Path, store: MemoryStore) 
     )
 
 
-__all__ = ["ClassificationResult", "classify_artifacts_against_projects", "FLOOR_CONFIDENCE"]
+def list_candidate_details(store: MemoryStore, status: str = "candidate", limit: int = 50) -> list[dict]:
+    """`list_artifact_project_candidates`, enriched with artifact/project
+    names for display — the shape `UI_TRD.md`'s `start_scan` return
+    value specifies (name/name/confidence/candidate_id), not just raw
+    IDs. Read-only; never modifies a candidate's review status.
+    """
+    details = []
+    for row in store.list_artifact_project_candidates(status, limit):
+        artifact = store.conn.execute(
+            "SELECT name FROM artifacts WHERE artifact_id=?", (row["artifact_id"],)
+        ).fetchone()
+        project = store.conn.execute(
+            "SELECT name FROM projects WHERE project_id=?", (row["project_id"],)
+        ).fetchone()
+        details.append({
+            "candidate_id": row["candidate_id"],
+            "artifact_name": artifact["name"] if artifact else row["artifact_id"],
+            "project_name": project["name"] if project else row["project_id"],
+            "confidence": row["confidence"],
+            "status": row["status"],
+        })
+    return details
+
+
+__all__ = [
+    "ClassificationResult",
+    "classify_artifacts_against_projects",
+    "list_candidate_details",
+    "FLOOR_CONFIDENCE",
+]
