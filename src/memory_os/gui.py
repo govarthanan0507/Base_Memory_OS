@@ -220,9 +220,16 @@ class CandidateCard(QFrame):
         )
 
         layout = QVBoxLayout(self)
+        # F-06 (QA finding): these two fields come from filenames/project
+        # names on disk, not this product's own trusted output - they
+        # must be escaped the same way _markdown_to_html already escapes
+        # continuity.py's text, or a maliciously/carelessly named file
+        # can inject HTML structure into this card.
+        artifact_name = html.escape(candidate["artifact_name"], quote=False)
+        project_name = html.escape(candidate["project_name"], quote=False)
         text = QLabel(
-            f"<b>{candidate['artifact_name']}</b> may belong to "
-            f"<b>{candidate['project_name']}</b> "
+            f"<b>{artifact_name}</b> may belong to "
+            f"<b>{project_name}</b> "
             f"(confidence {candidate['confidence']:.2f})"
         )
         text.setTextFormat(Qt.RichText)

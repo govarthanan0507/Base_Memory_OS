@@ -57,6 +57,28 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(card.reject_button.isEnabled())
         self.assertEqual(self.store.related(self.project_id, "contains")[0]["target_id"], self.artifact_id)
 
+    def test_candidate_card_escapes_artifact_and_project_names(self):
+        # F-06 (QA finding, PR #11): these two fields come from
+        # filenames/project names, not this product's own trusted
+        # output - a maliciously or carelessly named file must not
+        # inject real HTML structure into the rendered card.
+        from memory_os.gui import CandidateCard
+
+        card = CandidateCard(self.store, {
+            "candidate_id": "cand-1",
+            "artifact_name": "<script>alert(1)</script>.py",
+            "project_name": "<img onerror=alert(1) src=x>",
+            "confidence": 0.5,
+        })
+        from PySide6.QtWidgets import QLabel
+        text_label = [w for w in card.findChildren(QLabel) if "may belong to" in w.text()]
+        self.assertTrue(text_label, "expected to find the card's descriptive QLabel")
+        rendered = text_label[0].text()
+        self.assertNotIn("<script>", rendered)
+        self.assertNotIn("<img", rendered)
+        self.assertIn("&lt;script&gt;", rendered)
+        self.assertIn("&lt;img", rendered)
+
     def test_candidate_card_reject_creates_no_relation(self):
         from memory_os.core import ArtifactProjectCandidateRecord
         from memory_os.gui import CandidateCard
