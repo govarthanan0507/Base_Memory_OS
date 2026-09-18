@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .candidates import persist_candidates
 from .continuity import render_project_reentry_brief, render_reentry_brief
+from .focus_guidance import render_focus_guidance
 from .continuity_os import render_continuity_dashboard
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
@@ -110,6 +111,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_artifact.add_argument("candidate_id")
     review_artifact.add_argument("decision", choices=("accepted", "rejected"))
     sub.add_parser("gui", help="Launch the desktop GUI (requires the 'gui' extra: pip install base-memory-os[gui])")
+    focus = sub.add_parser("focus-guidance", help="Report idea-hopping and cross-project completion signals")
+    focus.add_argument("--window", type=int, default=8)
+    focus.add_argument("--limit", type=int, default=50)
     return parser
 
 
@@ -272,6 +276,8 @@ def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
         window.show()
         logger.info("gui: launched")
         app.exec()
+    elif args.command == "focus-guidance":
+        print(render_focus_guidance(store, window=args.window, limit=args.limit))
 
 
 def main() -> int:
