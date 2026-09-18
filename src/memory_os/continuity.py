@@ -44,14 +44,31 @@ def _entity(store: MemoryStore, entity_id: str):
 def _linked_entities(store: MemoryStore, entity_id: str, limit: int = 50):
     out = []
     for link in related_records(store, entity_id, limit):
-        other = link["target_id"] if link["source_id"] == entity_id else link["source_id"]
+        is_source = link["source_id"] == entity_id
+        other = link["target_id"] if is_source else link["source_id"]
         found = _entity(store, other)
         if found is None:
             continue
         kind, item = found
-        item.update(kind=kind, relation=link["relation"], relation_id=link["relation_id"])
+        item.update(
+            kind=kind, relation=link["relation"], relation_id=link["relation_id"],
+            direction="outgoing" if is_source else "incoming",
+        )
         out.append(item)
     return out
+
+
+def _describe_relation(relation: str, direction: str, name: str) -> str:
+    """A readable label for one relation, from the current entity's
+    point of view. `supports` gets natural wording in both directions
+    (E3's one defined semantic relation type); any other relation
+    string — `relate()` accepts arbitrary ones — still surfaces
+    honestly rather than being hidden for lack of pretty wording.
+    """
+    if relation == "supports":
+        return f"supports {name}" if direction == "outgoing" else f"supported by {name}"
+    arrow = "→" if direction == "outgoing" else "←"
+    return f"{relation} {arrow} {name}"
 
 
 def conversation_context(store: MemoryStore, conversation_id: str, limit: int = 50):
@@ -128,6 +145,7 @@ def project_context(store: MemoryStore, project_id: str, limit: int = 50):
         "conversations": conversations,
         "artifacts": [x for x in linked if x["kind"] == "artifact"],
         "memories": [x for x in linked if x["kind"] == "memory"],
+        "related_ideas": [x for x in linked if x["kind"] == "project"],
         "open_candidates": _open_project_candidates(store, project_id, limit),
         "events": events,
         "latest_conversation": latest_conversation,
@@ -270,6 +288,15 @@ def render_project_reentry_brief(store: MemoryStore, project_id: str, limit: int
         )
     else:
         lines.append("- No project event recorded.")
+
+    lines += ["", "## Related ideas"]
+    if packet["related_ideas"]:
+        lines.extend(
+            f"- {_describe_relation(x['relation'], x['direction'], x['name'])}"
+            for x in packet["related_ideas"]
+        )
+    else:
+        lines.append("- No related ideas recorded.")
 
     lines += ["", "## Open unresolved candidates"]
     if packet["open_candidates"]:

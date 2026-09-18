@@ -206,6 +206,67 @@ class ContinuityTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_project_context_surfaces_related_ideas_with_direction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                supporting = store.add_project(Project("Collector Tooling", str(Path(tmp) / "collector")))
+                supported = store.add_project(Project("Video Understanding", str(Path(tmp) / "video")))
+                store.relate(supporting, "supports", supported)
+
+                packet = project_context(store, supporting)
+                self.assertEqual(len(packet["related_ideas"]), 1)
+                self.assertEqual(packet["related_ideas"][0]["direction"], "outgoing")
+                self.assertEqual(packet["related_ideas"][0]["relation"], "supports")
+                self.assertEqual(packet["related_ideas"][0]["name"], "Video Understanding")
+
+                reverse_packet = project_context(store, supported)
+                self.assertEqual(reverse_packet["related_ideas"][0]["direction"], "incoming")
+            finally:
+                store.close()
+
+    def test_reentry_brief_shows_supports_relation_readably_both_directions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                supporting = store.add_project(Project("Collector Tooling", str(Path(tmp) / "collector")))
+                supported = store.add_project(Project("Video Understanding", str(Path(tmp) / "video")))
+                store.relate(supporting, "supports", supported)
+
+                supporting_brief = render_project_reentry_brief(store, supporting)
+                self.assertIn("## Related ideas", supporting_brief)
+                self.assertIn("supports Video Understanding", supporting_brief)
+
+                supported_brief = render_project_reentry_brief(store, supported)
+                self.assertIn("supported by Collector Tooling", supported_brief)
+            finally:
+                store.close()
+
+    def test_reentry_brief_shows_no_related_ideas_explicitly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                pid = store.add_project(Project("Solo Project", str(Path(tmp) / "solo")))
+                brief = render_project_reentry_brief(store, pid)
+                self.assertIn("## Related ideas", brief)
+                self.assertIn("No related ideas recorded.", brief)
+            finally:
+                store.close()
+
+    def test_reentry_brief_shows_non_supports_relation_generically(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = MemoryStore(Path(tmp) / "db.sqlite")
+            try:
+                a = store.add_project(Project("Idea A", str(Path(tmp) / "a")))
+                b = store.add_project(Project("Idea B", str(Path(tmp) / "b")))
+                store.relate(a, "inspired_by", b)
+
+                brief = render_project_reentry_brief(store, a)
+                self.assertIn("inspired_by", brief)
+                self.assertIn("Idea B", brief)
+            finally:
+                store.close()
+
 
 if __name__ == "__main__":
     unittest.main()
