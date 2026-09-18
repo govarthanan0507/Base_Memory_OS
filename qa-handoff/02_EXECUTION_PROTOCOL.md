@@ -1,15 +1,10 @@
-# Execution Protocol — V2 E3
+# Execution Protocol — V3 E5
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
-template, by the developer. Build/run/environment facts below are
-unchanged from every prior cycle — this epic adds no new dependency,
-no new runtime requirement, no schema change (Tier 1 per
-`E3_REQUIREMENTS.md`'s own tiering determination) — re-confirmed
-against `.github/workflows/tests.yml` and `pyproject.toml` for this
-cycle, not copied blind. Note: this branch was cut from `main` before
-PR #11 (the GUI shell) merged, so it does not include the `gui` extra
-or its system-library requirement — that's a separate PR's concern,
-not missing from this one.
+template, by the developer. Unchanged from every prior cycle — E5
+adds one new pure-Python module with zero new dependency and no
+schema change. This branch was cut from `main` after E1/E3/GUI-shell
+all merged, so it carries the `gui` extra already — no gap there.
 
 ## Build / run instructions
 
@@ -27,8 +22,7 @@ not missing from this one.
 - **Required environment variables / secrets (names only):** None. No
   network calls, no external service credentials — fully local-first.
 - **Required external services and how they're mocked/stubbed for QA:**
-  None. This tool has zero external service dependency by design (see
-  README's "local-first, vendor-independent" framing).
+  None.
 
 ## Known environment differences from production
 
@@ -45,10 +39,12 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-No new numeric targets this cycle — E3 adds no new write path (it
-reuses `relate()`, unchanged) and no new read-path scale concern
-beyond what already exists (`_linked_entities`' own `limit` parameter,
-already bounded, unchanged by this cycle).
+No new numeric targets this cycle. One real, cycle-specific note:
+`detect_idea_hopping`'s `window` parameter bounds its own cost (a
+single `ORDER BY timestamp DESC LIMIT window` query plus a linear
+scan of that window) — not evaluated against an unusually large
+`project_events` table; flagged as a scale ceiling, not measured as a
+hard limit, same framing as E4's own note on `extract_behavioral_signal`.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.
@@ -63,15 +59,10 @@ already bounded, unchanged by this cycle).
 
 For Stage 9 — what instrumentation exists today, and where:
 
-- **Logging:** New as of this fix cycle (F-02) —
-  `src/memory_os/logging_setup.py`. File handler on the true root
-  logger, writing to `.memory-os/memory-os.log` (created beside the
-  SQLite db path passed to the CLI). INFO level by default; `--verbose`
-  flag raises to DEBUG and mirrors to stderr. Every write-path command
-  (init, add-memory, scan-projects, import-conversation,
-  import-chatgpt-export, relate, link-project-conversation,
-  extract-candidates, review-candidate, project-evidence) logs an INFO
-  entry. Caught errors log WARNING with `exc_info=True`; genuinely
-  unexpected exceptions log via `logger.exception` before re-raising.
+- **Logging:** `src/memory_os/logging_setup.py` (unchanged this
+  cycle) — file handler on the true root logger, writing to
+  `.memory-os/memory-os.log`. `focus-guidance` logs an INFO entry on
+  invocation (window/limit), matching every other command in
+  `_dispatch`.
 - **Metrics:** None — out of scope for this local-first CLI tool.
 - **Tracing:** None — out of scope for this local-first CLI tool.

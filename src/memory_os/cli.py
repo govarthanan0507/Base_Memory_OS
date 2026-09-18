@@ -277,6 +277,7 @@ def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
         logger.info("gui: launched")
         app.exec()
     elif args.command == "focus-guidance":
+        logger.info("focus-guidance: window=%d limit=%d", args.window, args.limit)
         print(render_focus_guidance(store, window=args.window, limit=args.limit))
 
 
