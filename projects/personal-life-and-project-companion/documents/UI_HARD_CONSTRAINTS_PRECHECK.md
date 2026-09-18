@@ -55,3 +55,9 @@ on the other platforms if that ever changes.
 both are now resolved and recorded above, not decided silently by the
 Council. Category 12 required a fact only the user could supply, now
 confirmed.
+
+**Revision note**: `UI_DEBATE.md`'s later reconvene (native Qt widgets
+instead of `QWebEngineView`) narrows the dependency to plain `PySide6`
+— `PySide6-Addons`/QtWebEngine's Chromium payload is no longer needed.
+This makes Category 9's already-accepted dependency lighter, not a new
+one; nothing above changes as a result.

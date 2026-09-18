@@ -117,3 +117,86 @@ needed for this one case) stating the GUI couldn't start and pointing
 at `cli.py`'s existing commands as a working fallback — never a silent
 crash, and never blocking the user from the tool entirely just because
 the chat shell failed to load. Added to `UI_TRD.md` explicitly.
+
+---
+
+## Reconvene — `QWebEngineView` vs. native Qt widgets (dated addendum, supersedes the architecture choice above, not the whole debate)
+
+Roles reconvened: Frontend Architect, UI Designer, Architect,
+Security-Architect. Trigger: `REPO_CANDIDATES.md`'s UI-shell-candidate
+research (checking whether an open-source precedent already existed
+for this exact shape of app) surfaced real evidence never checked
+against the original decision above — two verified, real PySide6
+chat-GUI projects (`yjg30737/pyqt-openai`, 149★, MIT;
+`BriannaThorez/NutellaLLM_GUI`, 7★, GPL-3.0), and **neither uses
+`QWebEngineView`** — both render their chat UI from native Qt widgets.
+
+**Frontend Architect (revising own prior position)**: The original
+reasoning ("hand-built widgets would be worse than reusing web
+rendering") was never checked against real precedent, and the
+precedent that exists points the other way. Also newly relevant,
+missed in the first pass: Qt's own `QTextBrowser`/`QTextEdit` support
+a real subset of HTML4/CSS2 rich text **natively** — bold, lists,
+headers, tables, basic styling, and clickable links via
+`anchorClicked`/`linkActivated` — with no Chromium involved at all.
+For E1/E2's actual content (status text with basic formatting, a
+candidate card with a name/confidence line and two buttons), this
+covers everything `UI_DEBATE.md`'s original UI Designer position
+asked for. Revises the proposal: **native Qt widgets**, not
+`QWebEngineView`.
+
+**UI Designer**: Confirms the revised approach still satisfies the
+original ask (chat bubbles, inline Accept/Reject on a candidate
+message) — a `QScrollArea` holding a vertical stack of message
+widgets: `QLabel`(`textFormat=Qt.RichText`) for assistant/user text
+bubbles, and a small `QFrame` (label + two `QPushButton`s) for
+candidate cards. Visually close enough to a chat thread for this
+product's actual need; not claiming pixel-parity with this specific
+chat environment's own CSS, which was never a stated requirement,
+only a *feel* (`UI_DEBATE.md`'s original human-gate input).
+
+**Architect**: No change to E1/E2's underlying logic either way — this
+is still purely a presentation-layer decision. Notes the practical
+win: removing `QWebEngineView` also removes `PySide6-Addons`'s
+Chromium payload (a much heavier install than plain `PySide6`), and
+removes an entire class of failure (Chromium failing to initialize)
+the original synthesis had to define a fallback for at all.
+
+**Security-Architect**: The `QWebChannel` bridge-scoping requirement
+(a closed, named function list) is now **moot, not violated** — with
+no embedded web content, there is no JS/Python bridge to scope in the
+first place. The three functions (`submit_query`, `start_scan`,
+`respond_to_candidate`) still exist, just as direct Python method
+calls wired to Qt widget signals (button `clicked`, line-edit
+`returnPressed`) instead of a `QWebChannel` object. No new finding.
+
+## Revised synthesis
+
+- **Native Qt widgets**, not `QWebEngineView` — a `QScrollArea` of
+  message widgets (`QLabel` rich-text bubbles, `QFrame` candidate
+  cards with inline buttons), a `QLineEdit` + send button for input.
+- `PySide6` alone (no `PySide6-Addons`/QtWebEngine) — Hard Constraint
+  #9's earlier acceptance still holds (one new dependency, PySide6),
+  just a lighter one than originally scoped.
+- The three bridge functions (`submit_query`, `start_scan`,
+  `respond_to_candidate`) are unchanged in name and behavior — only
+  their calling convention changes (direct Qt signal/slot, not
+  `QWebChannel`).
+- No fallback-on-initialization-failure design is needed — removed as
+  a requirement, not just resolved, since the failure mode it existed
+  for (Chromium failing to load) no longer exists.
+- Everything else `UI_DEBATE.md`'s original synthesis decided (one
+  continuous thread for E1+E2, `cli.py` kept as a second front end,
+  session-only message history) is unchanged.
+
+## What this reconvene does not do
+
+- Does not reopen Hard Constraint #9 (new dependency) or #12
+  (platform) — both already resolved and unaffected by this narrower,
+  presentation-mechanism change.
+- Does not claim native widgets look *identical* to this chat
+  environment — the human gate's actual ask ("look and feel like
+  this chat environment") is judged satisfiable by a competent
+  chat-bubble layout, not pixel-for-pixel replication; if that turns
+  out to be insufficient once built, that's real feedback for a
+  follow-up pass, not assumed now.
