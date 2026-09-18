@@ -84,6 +84,23 @@ from any prior handoff's own claims, per this gate's own requirement.
 - **IMPACT ON PLANNED EPICS**: New CLI subcommands (e.g. for
   triggering file-scan/classification) extend this pattern directly.
 
+## Correction — 2026-09-18, found during Design Council debate, not the original audit pass
+
+`discovery.py`'s `scan_workspace` was missed in the original audit
+above. Read directly now: it already does read-only artifact
+discovery (`add_artifact`, with content hashing) and **auto-links**
+every discovered artifact to a project via `store.relate(pid,
+"contains", aid)` — no confirmation step. This is a real conflict
+with `idea.md`'s explicit "never blind auto-mapping" requirement, for
+the specific use case E2 targets (an ambiguous stray file that could
+belong to any of several *existing* projects, not a new project being
+discovered from a recognizable folder structure — a different
+scenario than what `scan_workspace` was built for). This does not
+change any REUSE AS-IS verdict above; it's a scoping note for the
+debate below: `scan_workspace`'s auto-link pattern must not be reused
+for E2's ambiguous-classification case, even though its `Artifact`/
+`add_artifact` primitives are.
+
 ## Out of this gate's scope — genuinely new capabilities, not existing code to audit
 
 Per `SHARED/EXISTING_CODE_AUDIT_GATE.md`'s own scope, this gate audits
