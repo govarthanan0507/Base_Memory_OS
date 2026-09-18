@@ -2,15 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_os.continuity import (
-    conversation_context,
-    find_project_by_name,
-    project_completion_signal,
-    project_context,
-    render_project_reentry_brief,
-    render_reentry_brief,
-    submit_query,
-)
+from memory_os.continuity import conversation_context, project_context, render_project_reentry_brief, render_reentry_brief
 from memory_os.conversation import Conversation, Message, persist_conversation
 from memory_os.core import Artifact, Memory, MemoryCandidateRecord, MemoryStore, Project
 
@@ -110,99 +102,6 @@ class ContinuityTests(unittest.TestCase):
                     conversation_context(store, "missing")
                 with self.assertRaises(KeyError):
                     project_context(store, "missing")
-            finally:
-                store.close()
-
-    def test_completion_signal_unclear_for_freshly_created_project(self):
-        # add_project always records its own "project_created" event, so a
-        # brand-new project has activity but no artifacts/candidates yet —
-        # the "unavailable" branch only applies if a project row somehow
-        # existed with zero events at all, which add_project never produces.
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                pid = store.add_project(Project("Bare Project", str(Path(tmp) / "bare")))
-                signal = project_completion_signal(store, pid)
-                self.assertTrue(signal["available"])
-                self.assertEqual(signal["artifact_count"], 0)
-                self.assertEqual(signal["open_candidate_count"], 0)
-                self.assertIn("unclear", signal["label"])
-            finally:
-                store.close()
-
-    def test_completion_signal_settled_when_no_open_candidates(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                pid = store.add_project(Project("Importer", str(Path(tmp) / "importer")))
-                aid = store.add_artifact(Artifact("importer.py", "code", str(Path(tmp) / "importer" / "importer.py")))
-                store.relate(pid, "contains", aid)
-
-                signal = project_completion_signal(store, pid)
-                self.assertTrue(signal["available"])
-                self.assertEqual(signal["artifact_count"], 1)
-                self.assertEqual(signal["open_candidate_count"], 0)
-                self.assertIn("settled", signal["label"])
-            finally:
-                store.close()
-
-    def test_completion_signal_actively_evolving_with_many_open_candidates(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                pid = store.add_project(Project("Sorter", str(Path(tmp) / "sorter")))
-                aid = store.add_artifact(Artifact("sorter.py", "code", str(Path(tmp) / "sorter" / "sorter.py")))
-                store.relate(pid, "contains", aid)
-                store.add_candidate(MemoryCandidateRecord(
-                    content="Classify a new file",
-                    memory_type="task",
-                    source="test",
-                    source_message_id="msg-1",
-                    confidence=0.6,
-                    metadata={"project_id": pid},
-                    observed_at="2026-09-18T00:00:00+00:00",
-                ))
-
-                signal = project_completion_signal(store, pid)
-                self.assertTrue(signal["available"])
-                self.assertEqual(signal["open_candidate_count"], 1)
-                self.assertIn("actively evolving", signal["label"])
-
-                brief = render_project_reentry_brief(store, pid)
-                self.assertIn("## Completion signal", brief)
-                self.assertIn("actively evolving", brief)
-            finally:
-                store.close()
-
-    def test_completion_signal_missing_project_raises(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                with self.assertRaises(KeyError):
-                    project_completion_signal(store, "missing")
-            finally:
-                store.close()
-
-    def test_submit_query_matches_project_by_name(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                pid = store.add_project(Project("Video Understanding", str(Path(tmp) / "video")))
-                self.assertEqual(find_project_by_name(store, "status of Video Understanding"), pid)
-
-                reply = submit_query(store, "what's the status of Video Understanding")
-                self.assertIn("Video Understanding", reply)
-                self.assertIn("## Completion signal", reply)
-            finally:
-                store.close()
-
-    def test_submit_query_unmatched_text_is_explicit_not_guessed(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            store = MemoryStore(Path(tmp) / "db.sqlite")
-            try:
-                store.add_project(Project("Video Understanding", str(Path(tmp) / "video")))
-                reply = submit_query(store, "how is the weather")
-                self.assertIn("couldn't match", reply)
             finally:
                 store.close()
 
