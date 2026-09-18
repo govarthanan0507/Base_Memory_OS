@@ -111,12 +111,12 @@ def classify_artifacts_against_projects(folder: str | Path, store: MemoryStore) 
                 continue
             try:
                 stat = path.stat()
+                content_hash = file_hash(path) if stat.st_size <= MAX_HASH_BYTES else None
             except OSError as exc:
                 logger.warning("classify-folder: skipping unreadable file %s: %s", path, exc)
                 skipped.append(str(path))
                 continue
 
-            content_hash = file_hash(path) if stat.st_size <= MAX_HASH_BYTES else None
             artifact = Artifact(
                 name,
                 "code" if path.suffix.lower() in CODE_EXTENSIONS else "file",
