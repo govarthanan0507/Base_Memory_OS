@@ -1,11 +1,13 @@
-# Execution Protocol — V1 E1-1/E1-2
+# Execution Protocol — V1 E2
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
 template, by the developer. Build/run/environment facts below are
-unchanged from the V0.1-FIX-01 cycle (this PR touches only
-`continuity.py`/`test_continuity.py` — no new dependency, no runtime
-change) and are re-confirmed against `.github/workflows/tests.yml` and
-`pyproject.toml` for this cycle, not copied blind.
+unchanged from the prior cycles (this PR adds one new module,
+`project_classification.py`, plus a new table — no new third-party
+dependency, no runtime change, per `E2_HARD_CONSTRAINTS_PRECHECK.md`'s
+resolution of Hard Constraint #9) and are re-confirmed against
+`.github/workflows/tests.yml` and `pyproject.toml` for this cycle, not
+copied blind.
 
 ## Build / run instructions
 
@@ -41,16 +43,19 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-This cycle adds two read-path query functions
-(`find_project_by_name`, `project_completion_signal`) and does not
-touch write-path or storage-layer code, so no new numeric targets are
-introduced beyond what the original V0.1 cycle already set. If the
-original cycle did not set explicit targets, that gap is unchanged by
-this cycle and should be raised by QA as a carried-forward, not a new,
-gap. One real, cycle-specific note: `find_project_by_name` iterates
-`store.list_projects(limit=200)` doing a substring match per project —
-QA should note this as a scale ceiling (not evaluated past 200
-projects) rather than assume it's unbounded.
+This cycle adds a write path (`classify_artifacts_against_projects`
+registers an artifact and scores it against every existing project
+per scanned file). No new numeric targets are introduced beyond what
+prior cycles already set, but two real, cycle-specific scale notes:
+
+- `classify_artifacts_against_projects`'s per-file cost scales with
+  the number of existing projects (it re-tokenizes every project's
+  linked-artifact names per file scanned, per project) — not
+  evaluated against a large project count or a large folder; flagged
+  as a scale ceiling, not measured as a hard limit.
+- Content-snippet reads are capped at `MAX_HASH_BYTES` (reused from
+  `discovery.py`), consistent with the E2_TRD.md's Security-Architect
+  requirement against unbounded reads.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.

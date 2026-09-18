@@ -65,6 +65,17 @@ class MemoryCandidateRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ArtifactProjectCandidateRecord:
+    artifact_id: str
+    project_id: str
+    confidence: float = 0.5
+    status: str = "candidate"
+    observed_at: str = field(default_factory=utc_now)
+    candidate_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 class MemoryStore:
     """Small SQLite-backed source of truth for the memory OS."""
 
@@ -126,6 +137,13 @@ class MemoryStore:
             );
             CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
                 memory_id UNINDEXED, content, memory_type, source
+            );
+            CREATE TABLE IF NOT EXISTS artifact_project_candidates (
+                candidate_id TEXT PRIMARY KEY, artifact_id TEXT NOT NULL, project_id TEXT NOT NULL,
+                confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+                status TEXT NOT NULL CHECK(status IN ('candidate', 'accepted', 'rejected')),
+                observed_at TEXT NOT NULL, metadata_json TEXT NOT NULL,
+                UNIQUE(artifact_id, project_id)
             );
             """
         )
@@ -312,6 +330,72 @@ class MemoryStore:
             "SELECT * FROM artifact_events WHERE artifact_id=? ORDER BY timestamp DESC LIMIT ?",
             (artifact_id, limit)))
 
+    def add_artifact_project_candidate(self, record: ArtifactProjectCandidateRecord) -> str:
+        """Propose (or re-propose, on real content change) an artifact-project link.
+
+        Per E2_FRD.md: a rejected (or accepted) candidate never resurfaces
+        unchanged — if the stored record's content hash already matches
+        `record.metadata["content_hash"]`, the existing row (and its
+        review status) is left untouched. Only a genuine content change
+        resets it to `candidate` with the freshly computed confidence.
+        """
+        self._validate_confidence(record.confidence)
+        if record.status not in {"candidate", "accepted", "rejected"}:
+            raise ValueError("candidate status must be candidate, accepted, or rejected")
+        existing = self.conn.execute(
+            "SELECT * FROM artifact_project_candidates WHERE artifact_id=? AND project_id=?",
+            (record.artifact_id, record.project_id),
+        ).fetchone()
+        if existing is not None:
+            existing_hash = json.loads(existing["metadata_json"] or "{}").get("content_hash")
+            if existing_hash == record.metadata.get("content_hash"):
+                return existing["candidate_id"]
+            self.conn.execute(
+                "UPDATE artifact_project_candidates SET confidence=?, status='candidate', "
+                "observed_at=?, metadata_json=? WHERE candidate_id=?",
+                (record.confidence, record.observed_at,
+                 json.dumps(record.metadata, sort_keys=True), existing["candidate_id"]),
+            )
+            self.conn.commit()
+            return existing["candidate_id"]
+        self.conn.execute(
+            "INSERT INTO artifact_project_candidates VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (record.candidate_id, record.artifact_id, record.project_id, record.confidence,
+             record.status, record.observed_at, json.dumps(record.metadata, sort_keys=True)),
+        )
+        self.conn.commit()
+        return record.candidate_id
+
+    def list_artifact_project_candidates(self, status: str = "candidate", limit: int = 50) -> list[sqlite3.Row]:
+        if limit < 1:
+            return []
+        if status not in {"candidate", "accepted", "rejected", "all"}:
+            raise ValueError("invalid candidate status")
+        if status == "all":
+            return list(self.conn.execute(
+                "SELECT * FROM artifact_project_candidates ORDER BY observed_at DESC LIMIT ?", (limit,)))
+        return list(self.conn.execute(
+            "SELECT * FROM artifact_project_candidates WHERE status=? ORDER BY observed_at DESC LIMIT ?",
+            (status, limit)))
+
+    def review_artifact_project_candidate(self, candidate_id: str, decision: str) -> str:
+        if decision not in {"accepted", "rejected"}:
+            raise ValueError("decision must be accepted or rejected")
+        row = self.conn.execute(
+            "SELECT * FROM artifact_project_candidates WHERE candidate_id=?", (candidate_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(candidate_id)
+        if row["status"] != "candidate":
+            raise ValueError("candidate has already been reviewed")
+        self.conn.execute(
+            "UPDATE artifact_project_candidates SET status=? WHERE candidate_id=?", (decision, candidate_id)
+        )
+        if decision == "accepted":
+            self.relate(row["project_id"], "contains", row["artifact_id"])
+        self.conn.commit()
+        return candidate_id
+
     def relate(self, source_id: str, relation: str, target_id: str,
                metadata: dict[str, Any] | None = None) -> None:
         if not relation.strip():
@@ -359,4 +443,4 @@ class MemoryStore:
                 for table in ("memories", "memory_candidates", "projects", "project_events", "artifacts", "artifact_events", "relations")}
 
 
-__all__ = ["Artifact", "Memory", "MemoryCandidateRecord", "MemoryStore", "Project", "stable_id", "utc_now"]
+__all__ = ["Artifact", "ArtifactProjectCandidateRecord", "Memory", "MemoryCandidateRecord", "MemoryStore", "Project", "stable_id", "utc_now"]
