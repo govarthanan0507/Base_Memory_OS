@@ -109,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     review_artifact = sub.add_parser("review-artifact-candidate", help="Accept or reject an artifact-project candidate")
     review_artifact.add_argument("candidate_id")
     review_artifact.add_argument("decision", choices=("accepted", "rejected"))
+    sub.add_parser("gui", help="Launch the desktop GUI (requires the 'gui' extra: pip install base-memory-os[gui])")
     return parser
 
 
@@ -251,6 +252,26 @@ def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
         result = store.review_artifact_project_candidate(args.candidate_id, args.decision)
         logger.info("review-artifact-candidate: %s -> %s", args.candidate_id, args.decision)
         print(result)
+    elif args.command == "gui":
+        # Lazy import: the base CLI has zero required dependencies, and
+        # PySide6 (the 'gui' extra) should never be required just to run
+        # any other command.
+        try:
+            from PySide6.QtGui import QFont
+            from PySide6.QtWidgets import QApplication
+
+            from .gui import ChatWindow
+        except ImportError as exc:
+            raise ValueError(
+                "the GUI requires the optional 'gui' extra: pip install base-memory-os[gui]"
+            ) from exc
+        app = QApplication.instance() or QApplication([])
+        app.setFont(QFont("Segoe UI", 10))
+        window = ChatWindow(store)
+        window.resize(760, 640)
+        window.show()
+        logger.info("gui: launched")
+        app.exec()
 
 
 def main() -> int:
