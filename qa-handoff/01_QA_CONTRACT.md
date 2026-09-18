@@ -1,4 +1,4 @@
-# QA Contract — V1 E1-1/E1-2 (personal-life-and-project-companion)
+# QA Contract — V1 E2 (personal-life-and-project-companion)
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/01_QA_CONTRACT.md`'s
 template, by the developer side of this handoff (CodeFoundry
@@ -6,67 +6,79 @@ template, by the developer side of this handoff (CodeFoundry
 
 **Note on `qa-handoff/FINDINGS_RESPONSE.md`**: that file belongs to the
 prior `V0.1-FIX-01` cycle (F-01/F-02/F-03/F-04), already closed and
-merged. It is not part of this cycle's scope — kept in place per this
-project's "preserve history, don't overwrite" discipline, not
-mistakenly carried forward as if it applied here.
+merged. It is not part of this cycle's scope.
 
 ## Product
 
 - **Name / version being tested:** base-memory-os — new feature work
-  for the `personal-life-and-project-companion` project's V1 (epic E1,
-  stories E1-1 and E1-2). This is not a fix cycle on top of V0/V0.1;
-  it is the first Development work on the new project's roadmap.
-- **Exact commit or build identifier:** `7a0bc3ed95dee1878a7eb0e7d765a710b56feb2f`
-  on branch `feature/e1-status-briefing-and-completion-signal`
-  ([PR #9](https://github.com/govarthanan0507/Base_Memory_OS/pull/9)
+  for the `personal-life-and-project-companion` project's V1, epic E2
+  (stories E2-1, E2-2, E2-3: file/code → project classification). E1
+  (E1-1/E1-2) already merged to `main` in the prior cycle (PR #9).
+- **Exact commit or build identifier:** `628713b` on branch
+  `feature/e2-file-classification`
+  ([PR #10](https://github.com/govarthanan0507/Base_Memory_OS/pull/10)
   into `main`). Not yet merged — this handoff targets the PR head, not
   `main`; QA should re-pull if the branch is updated before review.
 - **Cycle type:** `FULL_AUDIT` (new functionality, not a fix-
-  verification cycle — no prior QA findings are being re-checked here).
+  verification cycle).
 - **If `FIX_VERIFICATION`:** N/A for this cycle.
 
 ## Scope
 
 - **In scope (components/features):**
-  - `src/memory_os/continuity.py` — three new functions:
-    `find_project_by_name`, `submit_query`, `project_completion_signal`,
-    plus the new "## Completion signal" section added to the existing
-    `render_project_reentry_brief`.
-  - `tests/test_continuity.py` — 8 new tests covering the above.
-- **Out of scope, and why:** every other module in the repository is
-  untouched by this PR — QA should confirm this via `git diff main...feature/e1-status-briefing-and-completion-signal --stat`
-  directly rather than take it on trust, same discipline as the prior
-  V0.1-FIX-01 cycle. No GUI code exists yet (E1-1's `submit_query` is
-  the backend function the future GUI's bridge will call — see
-  `projects/personal-life-and-project-companion/documents/UI_TRD.md` —
-  the GUI shell itself is a separate, not-yet-built ticket).
-- **Capabilities expected to apply (Stage 2 will confirm, this is a
-  starting hint, not binding):** functional correctness, data-integrity
-  correctness (SQLite queries, no writes on read-only query paths).
+  - `src/memory_os/core.py` — new `artifact_project_candidates` table
+    (additive-only migration), `ArtifactProjectCandidateRecord`
+    dataclass, and three new `MemoryStore` methods:
+    `add_artifact_project_candidate`, `list_artifact_project_candidates`,
+    `review_artifact_project_candidate`.
+  - `src/memory_os/project_classification.py` (new module) —
+    `classify_artifacts_against_projects`: folder scan, artifact
+    registration, and confidence-scored project-candidate proposal.
+  - `src/memory_os/cli.py` — two new commands: `classify-folder`,
+    `review-artifact-candidate`.
+  - `tests/test_core.py` (+7), `tests/test_project_classification.py`
+    (new, 7 tests).
+- **Out of scope, and why:** every other module is untouched — QA
+  should confirm via `git diff main...feature/e2-file-classification --stat`
+  directly. No GUI code exists yet — these are backend/CLI functions
+  only; the GUI shell (`UI_TRD.md`) is a separate, not-yet-built ticket
+  (#7's GUI-wiring half remains backlog).
+- **Capabilities expected to apply (starting hint, not binding):**
+  functional correctness, data-integrity correctness, security
+  (symlink-scope containment, no binary content reads, no network
+  calls — see `E2_TRD.md`'s Security-Architect requirements).
 
 ## Authorization boundaries
 
 - **Is destructive/intrusive testing authorized?** No. Local SQLite
-  state under a scratch/test directory only — matches how the existing
-  test suite already isolates state (`tempfile.TemporaryDirectory`).
+  and scratch filesystem state only (`tempfile.TemporaryDirectory`,
+  matching the existing test suite's isolation pattern).
 - **Is any product-modification mode authorized for this cycle?** No.
-- **Environment(s) authorized for testing:** Local, any environment
-  matching `02_EXECUTION_PROTOCOL.md`'s required runtime. No production
-  or shared environment involved.
+- **Environment(s) authorized for testing:** Local, matching
+  `02_EXECUTION_PROTOCOL.md`'s required runtime.
 - **Data authorized for use:** Synthetic/local test data only —
-  fabricated project/artifact/candidate records, no real user data.
+  fabricated files/folders, no real user data. If QA's environment
+  runs as root (or another user that bypasses file permission checks),
+  one test (`test_unreadable_file_is_skipped_and_scan_continues`)
+  self-skips rather than false-passing or false-failing — flagged
+  explicitly, not hidden; QA should independently verify the
+  permission-error path in an environment where it's actually
+  enforceable if that matters for this cycle's verdict.
 
 ## Security boundary acknowledgement
 
 - [x] I understand this cycle's security disposition will be
       baseline-only and does not constitute a penetration test or
-      security audit.
+      security audit. One real, in-scope security requirement for
+      *this* cycle specifically (symlink-scope containment) is covered
+      by a functional test (`test_symlink_escaping_scan_root_is_skipped_not_followed`),
+      not deferred to a future security-organization pass.
 
 ## Release authority
 
 - **Name/role:** Product owner (govarbank@gmail.com) — QA reports a
   verdict per this cycle; this handoff does not itself authorize
-  release or merge of PR #9.
+  release or merge of PR #10.
 
 ## Sign-off
 
