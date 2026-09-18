@@ -1,4 +1,4 @@
-# QA Contract — V2 E3 (personal-life-and-project-companion)
+# QA Contract — V2 E4 (personal-life-and-project-companion)
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/01_QA_CONTRACT.md`'s
 template, by the developer side of this handoff.
@@ -8,34 +8,34 @@ template, by the developer side of this handoff.
 
 ## Product
 
-- **Name / version being tested:** base-memory-os — epic E3 (Idea
-  Relationship Tracking), the first V2 epic. Ran in parallel with
-  QA's own review of PR #11 (the V1 GUI shell) — this PR does not
-  depend on #11 and touches none of the same code.
-- **Exact commit or build identifier:** `8194ffb` on branch
-  `feature/e3-idea-relationships`
-  ([PR — open one before sending]) into `main`.
+- **Name / version being tested:** base-memory-os — epic E4
+  (Emotional/Behavioral Signal Extraction), V2's second epic. Ran in
+  parallel with QA's review of PRs #11 (GUI shell) and #13 (E3) —
+  this PR touches none of the same code as either.
+- **Exact commit or build identifier:** `3fb102f` on branch
+  `feature/e4-behavioral-signal` (open a PR before sending) into `main`.
 - **Cycle type:** `FULL_AUDIT`.
 - **If `FIX_VERIFICATION`:** N/A.
 
 ## Scope
 
 - **In scope:**
-  - `src/memory_os/continuity.py` — `_linked_entities` now tags
-    direction (outgoing/incoming); new `_describe_relation` helper;
-    `project_context` exposes `related_ideas`;
-    `render_project_reentry_brief` adds a "## Related ideas" section.
-  - `tests/test_continuity.py` (+6 tests).
-  - `projects/.../documents/E3_REQUIREMENTS.md` (new — the Tier 1
-    determination and requirement; no Design Council package exists
-    for this epic, by design — see that file's own reasoning).
-- **Out of scope, and why:** no schema change, no new CLI command (the
-  existing `relate` command already covers creating the relation — QA
-  should confirm no new command was added rather than assume it). No
-  GUI wiring — E3_REQUIREMENTS.md explicitly defers that.
+  - `src/memory_os/emotional_signal.py` (new) —
+    `extract_behavioral_signal`, `render_behavioral_signal`,
+    `BehavioralSignal`.
+  - `src/memory_os/cli.py` — one new command, `emotional-signal`.
+  - `tests/test_emotional_signal.py` (new, 7 tests).
+  - `projects/.../documents/E4_HARD_CONSTRAINTS_PRECHECK.md`,
+    `E4_REQUIREMENTS.md` (Tier 2 design note — Backend-Architect +
+    Data-Architect, no full debate; no disagreement to resolve).
+- **Out of scope, and why:** no cross-conversation/per-project
+  aggregation (explicitly E5's territory per `E4_REQUIREMENTS.md`'s
+  non-goals). No new dependency, no new table — QA should confirm
+  both via `git diff main...feature/e4-behavioral-signal --stat` and
+  the module's own source (a test already greps for this, but
+  independent confirmation is the point of QA existing).
 - **Capabilities expected to apply:** functional correctness only —
-  this is a pure read-path/display addition, no new write path beyond
-  what `relate()` already did.
+  pure read path, no new write path.
 
 ## Authorization boundaries
 
@@ -43,17 +43,17 @@ template, by the developer side of this handoff.
   only, same isolation pattern as every prior cycle.
 - **Product-modification mode authorized?** No.
 - **Environment(s) authorized:** Local, matching
-  `02_EXECUTION_PROTOCOL.md` (unchanged from prior cycles — no new
-  runtime requirement).
+  `02_EXECUTION_PROTOCOL.md` (unchanged — no new runtime requirement).
 - **Data authorized for use:** Synthetic/local only.
 
 ## Security boundary acknowledgement
 
 - [x] Baseline-only, not a penetration test. Nothing new to flag —
-      this epic adds no new input surface beyond the existing
-      `relate` command's own (relation is an arbitrary string, already
-      true before this change; this cycle only adds *display* logic
-      for whatever string is already there).
+      this feature adds no new input surface (it reads
+      already-stored conversation text) and no new output surface
+      beyond plain-text CLI output (no HTML/rich-text rendering here,
+      unlike `gui.py`'s candidate cards — nothing analogous to F-06
+      applies to this module).
 
 ## Release authority
 

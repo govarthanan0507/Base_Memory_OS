@@ -1,15 +1,11 @@
-# Execution Protocol — V2 E3
+# Execution Protocol — V2 E4
 
 Filled per `QA_Organization/HANDOFF_PACKAGE_TEMPLATE/02_EXECUTION_PROTOCOL.md`'s
-template, by the developer. Build/run/environment facts below are
-unchanged from every prior cycle — this epic adds no new dependency,
-no new runtime requirement, no schema change (Tier 1 per
-`E3_REQUIREMENTS.md`'s own tiering determination) — re-confirmed
-against `.github/workflows/tests.yml` and `pyproject.toml` for this
-cycle, not copied blind. Note: this branch was cut from `main` before
-PR #11 (the GUI shell) merged, so it does not include the `gui` extra
-or its system-library requirement — that's a separate PR's concern,
-not missing from this one.
+template, by the developer. Unchanged from every prior cycle — E4
+adds one new pure-Python module with zero new dependency
+(`E4_HARD_CONSTRAINTS_PRECHECK.md`'s resolution) and no schema
+change. This branch was also cut before PR #11 (GUI shell) merged, so
+it carries no `gui` extra — a separate PR's concern, not missing.
 
 ## Build / run instructions
 
@@ -45,10 +41,11 @@ environment-parity gap exists to document.
 
 ## Numeric targets for Stage 8 (Non-Functional/Scale)
 
-No new numeric targets this cycle — E3 adds no new write path (it
-reuses `relate()`, unchanged) and no new read-path scale concern
-beyond what already exists (`_linked_entities`' own `limit` parameter,
-already bounded, unchanged by this cycle).
+No new numeric targets this cycle. One real, cycle-specific note:
+`extract_behavioral_signal`'s cost scales with a conversation's total
+message text length (the lexicon match is a linear scan) — not
+evaluated against an unusually large conversation; flagged as a
+scale ceiling, not measured as a hard limit.
 
 - **Expected peak concurrency:** Single local user, single process —
   not applicable in the multi-user sense.

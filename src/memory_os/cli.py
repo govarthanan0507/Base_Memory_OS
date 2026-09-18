@@ -11,6 +11,7 @@ from .continuity_os import render_continuity_dashboard
 from .conversation import get_messages, list_conversations
 from .core import Memory, MemoryStore
 from .discovery import scan_workspace
+from .emotional_signal import render_behavioral_signal
 from .evidence import link_conversation_to_project, record_conversation_candidates_as_project_events
 from .importers import import_chatgpt_export, import_json, import_markdown
 from .logging_setup import configure_logging, get_logger
@@ -109,6 +110,8 @@ def build_parser() -> argparse.ArgumentParser:
     review_artifact = sub.add_parser("review-artifact-candidate", help="Accept or reject an artifact-project candidate")
     review_artifact.add_argument("candidate_id")
     review_artifact.add_argument("decision", choices=("accepted", "rejected"))
+    signal = sub.add_parser("emotional-signal", help="Extract a behavioral/emotional signal from a conversation's own language")
+    signal.add_argument("conversation_id")
     sub.add_parser("gui", help="Launch the desktop GUI (requires the 'gui' extra: pip install base-memory-os[gui])")
     return parser
 
@@ -252,6 +255,8 @@ def _dispatch(store: MemoryStore, args: argparse.Namespace) -> None:
         result = store.review_artifact_project_candidate(args.candidate_id, args.decision)
         logger.info("review-artifact-candidate: %s -> %s", args.candidate_id, args.decision)
         print(result)
+    elif args.command == "emotional-signal":
+        print(render_behavioral_signal(store, args.conversation_id))
     elif args.command == "gui":
         # Lazy import: the base CLI has zero required dependencies, and
         # PySide6 (the 'gui' extra) should never be required just to run
