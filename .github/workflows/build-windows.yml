@@ -1,0 +1,82 @@
+name: build-windows
+
+# Builds the real Windows desktop artifacts on an actual windows-latest
+# runner - PyInstaller does not cross-compile, so this is the only way
+# to produce (and verify) a genuine Windows .exe/installer without a
+# physical Windows machine. This is the CI-side proxy for the "fresh
+# machine" requirement: the runner has no pre-existing project state,
+# and the produced BaseMemoryOS.exe bundles its own Python runtime, so
+# nothing about the packaged app depends on what's installed on the
+# runner beyond what PyInstaller bundled in.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-windows.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the package with its 'gui' extra, plus PyInstaller
+        run: |
+          pip install -e ".[gui]"
+          pip install pyinstaller
+
+      - name: Run the existing test suite (regression check before packaging)
+        env:
+          PYTHONPATH: src
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -s tests -v
+
+      - name: Build BaseMemoryOS.exe with PyInstaller
+        run: pyinstaller packaging\BaseMemoryOS.spec --noconfirm
+
+      - name: Verify the executable was actually produced
+        run: |
+          if (-not (Test-Path "dist\BaseMemoryOS.exe")) {
+            throw "dist\BaseMemoryOS.exe was not produced by PyInstaller"
+          }
+          Get-Item "dist\BaseMemoryOS.exe" | Format-List Name, Length, FullName
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build the installer (BaseMemoryOS-Setup.exe)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
+
+      - name: Verify the installer was actually produced
+        run: |
+          if (-not (Test-Path "dist\installer\BaseMemoryOS-Setup.exe")) {
+            throw "dist\installer\BaseMemoryOS-Setup.exe was not produced by Inno Setup"
+          }
+          Get-Item "dist\installer\BaseMemoryOS-Setup.exe" | Format-List Name, Length, FullName
+
+      - name: Upload BaseMemoryOS.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: BaseMemoryOS-exe
+          path: dist/BaseMemoryOS.exe
+
+      - name: Upload BaseMemoryOS-Setup.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: BaseMemoryOS-Setup-exe
+          path: dist/installer/BaseMemoryOS-Setup.exe
