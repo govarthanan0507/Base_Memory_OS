@@ -1,18 +1,15 @@
-"""Chat-styled desktop GUI shell — E1/E2 delivery, per UI_TRD.md.
+"""Desktop application shell — routes through `service.py` only.
 
-Native Qt widgets, not QWebEngineView (per UI_DEBATE.md's reconvene
-addendum) — no QWebChannel bridge; the three functions the design
-names (`submit_query`, `start_scan`, `respond_to_candidate`) are
-direct calls into the existing continuity.py/project_classification.py/
-core.py logic, wired to Qt widget signals.
+Per the Windows-application conversion requirements: `GUI -> service
+layer -> core`, never `GUI -> subprocess -> CLI`. Every action here
+(chat, project selection, folder scan, candidate review, import,
+search) calls a `MemoryOSService` method; nothing in this module
+touches `MemoryStore`/`continuity.py`/etc. directly any more.
 
-Two-pane layout (project list + chat), per the human gate's follow-up
-request: a left sidebar of projects, selecting one scopes the chat to
-that project (queries answer about it directly, and typed messages
-are logged as a project event — DISCOVERY_PROTOCOL.md's "update the
-memory towards the project" ask). Visual style is a light, white-chat
-theme deliberately inspired by (not copying) modern chat UIs — an
-own accent color, not a specific product's brand palette.
+Two audiences, one window: everyday use never shows a raw ID, a
+traceback, or the word "SQLite" — those are gated behind
+Settings -> Advanced -> Developer Mode, a persistent (`QSettings`)
+per-user preference, off by default.
 
 Requires the optional `gui` extra (`pip install base-memory-os[gui]`).
 Never imported by cli.py at module load time, so the CLI stays usable
@@ -23,12 +20,16 @@ from __future__ import annotations
 
 import html
 import re
-from pathlib import Path
+import traceback
+from functools import wraps
+from typing import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -37,17 +38,18 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from .continuity import render_project_reentry_brief, submit_query
-from .core import MemoryStore
 from .logging_setup import get_logger
-from .project_classification import classify_artifacts_against_projects, list_candidate_details
+from .service import MemoryOSService
 
 logger = get_logger(__name__)
 
@@ -57,13 +59,12 @@ _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
 # One own accent color, deliberately not matching a specific product's
 # brand palette (a structural-difference discipline this project
-# already applies to reused designs elsewhere, e.g.
-# WORKERS/Frontend-Developer's anti-UI-copying rule).
+# already applies to reused designs elsewhere).
 _ACCENT = "#3E6FEF"
 _ACCENT_HOVER = "#2F58C9"
 
 _STYLE_SHEET = f"""
-QMainWindow {{
+QMainWindow, QDialog {{
     background-color: #FFFFFF;
 }}
 #sidebar {{
@@ -76,26 +77,46 @@ QMainWindow {{
     color: #1A1A1A;
     padding: 16px 14px 10px 14px;
 }}
+#sectionLabel {{
+    font-size: 11px;
+    font-weight: 600;
+    color: #8A8A93;
+    padding: 14px 14px 4px 14px;
+    letter-spacing: 0.5px;
+}}
 #projectList {{
     border: none;
     background-color: transparent;
     font-size: 13px;
     outline: none;
 }}
-#projectList::item {{
+#projectList::item, QListWidget::item {{
     padding: 9px 12px;
     border-radius: 6px;
     color: #353740;
     margin: 1px 6px;
 }}
-#projectList::item:selected {{
+#projectList::item:selected, QListWidget::item:selected {{
     background-color: #ECECF1;
     color: #1A1A1A;
 }}
-#projectList::item:hover {{
+#projectList::item:hover, QListWidget::item:hover {{
     background-color: #EFEFF1;
 }}
-#chatPane, #chatScroll, #messageContainer {{
+#navButton {{
+    text-align: left;
+    border: none;
+    background-color: transparent;
+    padding: 9px 14px;
+    font-size: 13px;
+    color: #353740;
+    border-radius: 6px;
+    margin: 1px 6px;
+}}
+#navButton:hover {{
+    background-color: #EFEFF1;
+}}
+#chatPane, #chatScroll, #messageContainer, #memoryPane, #searchPane {{
     background-color: #FFFFFF;
     border: none;
 }}
@@ -103,7 +124,7 @@ QMainWindow {{
     background-color: #FFFFFF;
     border-top: 1px solid #E5E5E5;
 }}
-#inputLine {{
+#inputLine, #searchLine {{
     border: 1px solid #D9D9E3;
     border-radius: 18px;
     padding: 9px 14px;
@@ -111,7 +132,7 @@ QMainWindow {{
     background-color: #FFFFFF;
     color: #1A1A1A;
 }}
-#sendButton, #scanButton {{
+#sendButton, #scanButton, #primaryButton {{
     border: none;
     border-radius: 16px;
     padding: 9px 16px;
@@ -119,7 +140,7 @@ QMainWindow {{
     color: #FFFFFF;
     background-color: {_ACCENT};
 }}
-#sendButton:hover, #scanButton:hover {{
+#sendButton:hover, #scanButton:hover, #primaryButton:hover {{
     background-color: {_ACCENT_HOVER};
 }}
 #scanButton {{
@@ -128,16 +149,71 @@ QMainWindow {{
 #scanButton:hover {{
     background-color: #57576A;
 }}
+#settingsButton {{
+    border: none;
+    background-color: transparent;
+    font-size: 16px;
+    padding: 4px 10px;
+}}
+#settingsButton:hover {{
+    background-color: #EFEFF1;
+    border-radius: 6px;
+}}
 """
+
+_ORG, _APP = "BaseMemoryOS", "BaseMemoryOS"
+
+
+def _settings() -> QSettings:
+    # The two-argument QSettings(organization, application) constructor
+    # always uses NativeFormat regardless of QSettings.setDefaultFormat,
+    # which made this silently write to real OS-level config storage
+    # even under test (a QSettings.setPath override in a test only
+    # takes effect for a format explicitly requested here). Explicit
+    # IniFormat/UserScope is honored by setPath, cross-platform, and a
+    # predictable plain file either way.
+    return QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, _ORG, _APP)
+
+
+def developer_mode_enabled() -> bool:
+    return _settings().value("developer_mode", False, type=bool)
+
+
+def _guarded(label: str) -> Callable:
+    """Wrap a GUI action handler so an unexpected exception never
+    reaches the user as a traceback. Always logged in full; shown to
+    the user only as a plain "something went wrong" message, with the
+    real detail available only when Developer Mode is on.
+    """
+
+    def decorator(fn: Callable) -> Callable:
+        @wraps(fn)
+        def wrapped(self, *args, **kwargs):
+            try:
+                return fn(self, *args, **kwargs)
+            except Exception as exc:  # noqa: BLE001 - deliberate top-level guard
+                logger.exception("gui: %s failed", label)
+                detail = "".join(traceback.format_exception(exc)) if developer_mode_enabled() else str(exc)
+                box = QMessageBox(self)
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setWindowTitle("Something went wrong")
+                box.setText(f"Base Memory OS could not complete this operation.\n\n({label})")
+                box.setDetailedText(detail)
+                box.exec()
+                return None
+
+        return wrapped
+
+    return decorator
 
 
 def _markdown_to_html(raw: str) -> str:
-    """Convert the small markdown subset continuity.py's briefing text
-    actually uses (#/##  headings, "- " list items, **bold**) into Qt's
-    native rich-text HTML. Every text segment is HTML-escaped first,
-    so structural characters (#, -, *) are the only markup interpreted
-    — arbitrary content (a filename, a project summary) can never
-    inject real HTML/rich-text markup.
+    """Convert the small markdown subset the service's rendered text
+    actually uses (#/##  headings, "- " list items, **bold**) into
+    Qt's native rich-text HTML. Every text segment is HTML-escaped
+    first, so structural characters (#, -, *) are the only markup
+    interpreted — arbitrary content (a filename, a project summary)
+    can never inject real HTML/rich-text markup.
     """
     out: list[str] = []
     in_list = False
@@ -172,9 +248,7 @@ class MessageBubble(QLabel):
     """A single chat message.
 
     User messages: a light-gray rounded bubble, right-aligned.
-    Assistant messages: plain text, no bubble/background, left-aligned
-    — the same "no box around the assistant's reply" treatment modern
-    chat UIs use, rather than a WhatsApp-style bubble on both sides.
+    Assistant messages: plain text, no bubble/background, left-aligned.
     """
 
     _USER_MAX_WIDTH = 420
@@ -200,17 +274,24 @@ class MessageBubble(QLabel):
             )
 
 
+def _confidence_word(confidence: float) -> str:
+    if confidence >= 0.75:
+        return "High confidence"
+    if confidence >= 0.45:
+        return "Medium confidence"
+    return "Low confidence"
+
+
 class CandidateCard(QFrame):
-    """A proposed artifact-project mapping, with inline Accept/Reject —
-    the GUI's `respond_to_candidate` (UI_TRD.md), wired directly to
-    Qt button signals. Never calls `relate()` itself; that happens
-    inside `MemoryStore.review_artifact_project_candidate`, only after
-    the user clicks a button.
+    """A proposed file-to-project match, in plain language — no
+    candidate/artifact IDs shown unless Developer Mode is on. Routes
+    the user's decision through the service layer only
+    (`review_artifact_candidate`), never touching the store directly.
     """
 
-    def __init__(self, store: MemoryStore, candidate: dict) -> None:
+    def __init__(self, service: MemoryOSService, candidate: dict) -> None:
         super().__init__()
-        self._store = store
+        self._service = service
         self._candidate_id = candidate["candidate_id"]
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setMaximumWidth(420)
@@ -220,26 +301,35 @@ class CandidateCard(QFrame):
         )
 
         layout = QVBoxLayout(self)
-        # F-06 (QA finding): these two fields come from filenames/project
-        # names on disk, not this product's own trusted output - they
-        # must be escaped the same way _markdown_to_html already escapes
-        # continuity.py's text, or a maliciously/carelessly named file
-        # can inject HTML structure into this card.
+        # F-06 (QA finding, PR #11): these two fields come from
+        # filenames/project names on disk, not this product's own
+        # trusted output - they must be escaped, or a maliciously/
+        # carelessly named file can inject HTML structure into this
+        # card.
         artifact_name = html.escape(candidate["artifact_name"], quote=False)
         project_name = html.escape(candidate["project_name"], quote=False)
         text = QLabel(
-            f"<b>{artifact_name}</b> may belong to "
-            f"<b>{project_name}</b> "
-            f"(confidence {candidate['confidence']:.2f})"
+            f"Base Memory OS thinks <b>{artifact_name}</b> may belong to "
+            f"<b>{project_name}</b>."
         )
         text.setTextFormat(Qt.RichText)
         text.setWordWrap(True)
         text.setStyleSheet("QLabel { color: #1A1A1A; border: none; }")
         layout.addWidget(text)
 
+        confidence_label = QLabel(_confidence_word(candidate["confidence"]))
+        confidence_label.setStyleSheet("QLabel { color: #8A8A93; font-size: 11px; border: none; }")
+        layout.addWidget(confidence_label)
+        if developer_mode_enabled():
+            dev_label = QLabel(
+                f"candidate_id={self._candidate_id}  confidence={candidate['confidence']:.2f}"
+            )
+            dev_label.setStyleSheet("QLabel { color: #B5B5BD; font-size: 10px; border: none; }")
+            layout.addWidget(dev_label)
+
         buttons = QHBoxLayout()
-        self.accept_button = QPushButton("Accept")
-        self.reject_button = QPushButton("Reject")
+        self.accept_button = QPushButton("Remember")
+        self.reject_button = QPushButton("Ignore")
         self.accept_button.setStyleSheet(
             f"QPushButton {{ border: none; border-radius: 12px; padding: 6px 14px; "
             f"color: white; background-color: {_ACCENT}; }}"
@@ -255,7 +345,12 @@ class CandidateCard(QFrame):
         layout.addLayout(buttons)
 
     def _respond(self, decision: str) -> None:
-        self._store.review_artifact_project_candidate(self._candidate_id, decision)
+        try:
+            self._service.review_artifact_candidate(self._candidate_id, decision)
+        except Exception:
+            logger.exception("gui: candidate review failed")
+            QMessageBox.warning(self, "Something went wrong", "Base Memory OS could not save that decision.")
+            return
         logger.info("gui: candidate %s -> %s", self._candidate_id, decision)
         self.accept_button.setEnabled(False)
         self.reject_button.setEnabled(False)
@@ -265,10 +360,179 @@ class CandidateCard(QFrame):
         )
 
 
-class ChatWindow(QMainWindow):
-    def __init__(self, store: MemoryStore) -> None:
+class OnboardingDialog(QDialog):
+    """Shown once, on the very first launch (tracked in `QSettings`,
+    not the memory database — reinstalling the app or wiping the DB
+    doesn't itself bring this back for a returning user).
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Welcome to Base Memory OS")
+        self.setFixedWidth(440)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 32, 32, 28)
+        layout.setSpacing(14)
+
+        title = QLabel("Welcome to Base Memory OS")
+        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #1A1A1A;")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Your personal memory and continuity system.")
+        subtitle.setStyleSheet("color: #6E6E80; font-size: 13px;")
+        layout.addWidget(subtitle)
+
+        body = QLabel(
+            "Base Memory OS helps you preserve:\n"
+            "• conversations\n"
+            "• projects\n"
+            "• decisions\n"
+            "• ideas\n"
+            "• important context and working history\n\n"
+            "Everything stays on this computer — nothing is sent anywhere."
+        )
+        body.setWordWrap(True)
+        body.setStyleSheet("color: #353740; font-size: 13px;")
+        layout.addWidget(body)
+
+        get_started = QPushButton("Get Started")
+        get_started.setObjectName("primaryButton")
+        get_started.clicked.connect(self.accept)
+        layout.addWidget(get_started)
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, service: MemoryOSService, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._service = service
+        self.setWindowTitle("Settings")
+        self.setFixedWidth(420)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+
+        layout.addWidget(self._heading("Storage"))
+        location = QLabel(f"Your memory is stored locally on this computer:\n{service.db_path}")
+        location.setWordWrap(True)
+        location.setStyleSheet("color: #353740; font-size: 12px;")
+        layout.addWidget(location)
+
+        layout.addWidget(self._heading("AI Processing"))
+        processing = QLabel(
+            "Local only — no AI model or external API is used today. "
+            "Matching and search run entirely on this device, on stored text."
+        )
+        processing.setWordWrap(True)
+        processing.setStyleSheet("color: #353740; font-size: 12px;")
+        layout.addWidget(processing)
+
+        layout.addWidget(self._heading("Privacy"))
+        privacy = QLabel("Your memory never leaves this computer unless you export it yourself.")
+        privacy.setWordWrap(True)
+        privacy.setStyleSheet("color: #353740; font-size: 12px;")
+        layout.addWidget(privacy)
+
+        layout.addWidget(self._heading("Advanced"))
+        self.dev_mode_checkbox = QCheckBox("Enable Developer Mode (shows internal IDs and diagnostics)")
+        self.dev_mode_checkbox.setChecked(developer_mode_enabled())
+        self.dev_mode_checkbox.toggled.connect(self._on_dev_mode_toggled)
+        layout.addWidget(self.dev_mode_checkbox)
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        layout.addWidget(close_button)
+
+    @staticmethod
+    def _heading(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet("font-size: 12px; font-weight: 600; color: #8A8A93; margin-top: 6px;")
+        return label
+
+    def _on_dev_mode_toggled(self, checked: bool) -> None:
+        _settings().setValue("developer_mode", checked)
+
+
+class MemoryPage(QWidget):
+    """Human-readable list of stored memories. Deliberately does not
+    invent categories (Preferences/Decisions/Goals) this product does
+    not actually compute — each memory is shown with the type it was
+    actually stored under, honestly, not a fabricated classification.
+    """
+
+    def __init__(self, service: MemoryOSService) -> None:
         super().__init__()
-        self.store = store
+        self._service = service
+        self.setObjectName("memoryPane")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Your Memory")
+        title.setStyleSheet("font-size: 16px; font-weight: 600; color: #1A1A1A;")
+        layout.addWidget(title)
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.list_widget.clear()
+        memories = self._service.store.list_memories(limit=200)
+        if not memories:
+            self.list_widget.addItem("Nothing remembered yet.")
+            return
+        for row in memories:
+            label = row["memory_type"].replace("_", " ").capitalize()
+            self.list_widget.addItem(f"[{label}] {row['content']}")
+
+
+class SearchPage(QWidget):
+    def __init__(self, service: MemoryOSService) -> None:
+        super().__init__()
+        self._service = service
+        self.setObjectName("searchPane")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        title = QLabel("Search your memory")
+        title.setStyleSheet("font-size: 16px; font-weight: 600; color: #1A1A1A;")
+        layout.addWidget(title)
+
+        row = QHBoxLayout()
+        self.search_line = QLineEdit()
+        self.search_line.setObjectName("searchLine")
+        self.search_line.setPlaceholderText("Search your memory…")
+        self.search_line.returnPressed.connect(self._on_search)
+        button = QPushButton("Search")
+        button.setObjectName("sendButton")
+        button.clicked.connect(self._on_search)
+        row.addWidget(self.search_line)
+        row.addWidget(button)
+        layout.addLayout(row)
+
+        self.results_widget = QListWidget()
+        layout.addWidget(self.results_widget)
+
+    @_guarded("search")
+    def _on_search(self) -> None:
+        query = self.search_line.text().strip()
+        self.results_widget.clear()
+        if not query:
+            return
+        results = self._service.search_memories(query, limit=20)
+        if not results:
+            self.results_widget.addItem("No matches found.")
+            return
+        for row in results:
+            self.results_widget.addItem(f"{row['content']}  —  ({row['source']})")
+
+
+class MainWindow(QMainWindow):
+    """Chat is the primary interaction (project-scoped or general),
+    with Projects/Memory/Search reachable from the sidebar and
+    Settings from the toolbar. Everything routes through
+    `MemoryOSService` — see module docstring.
+    """
+
+    def __init__(self, service: MemoryOSService) -> None:
+        super().__init__()
+        self.service = service
         self.current_project_id: str | None = None
         self.setWindowTitle("Base Memory OS")
         self.setStyleSheet(_STYLE_SHEET)
@@ -280,7 +544,15 @@ class ChatWindow(QMainWindow):
         root.setSpacing(0)
 
         root.addWidget(self._build_sidebar())
-        root.addWidget(self._build_chat_pane(), 1)
+
+        self.stack = QStackedWidget()
+        self.chat_page = self._build_chat_pane()
+        self.memory_page = MemoryPage(self.service)
+        self.search_page = SearchPage(self.service)
+        self.stack.addWidget(self.chat_page)   # index 0
+        self.stack.addWidget(self.memory_page)  # index 1
+        self.stack.addWidget(self.search_page)  # index 2
+        root.addWidget(self.stack, 1)
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QWidget()
@@ -290,9 +562,24 @@ class ChatWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        header = QHBoxLayout()
         title = QLabel("Base Memory OS")
         title.setObjectName("appTitle")
-        layout.addWidget(title)
+        header.addWidget(title)
+        header.addStretch()
+        settings_button = QPushButton("⚙")
+        settings_button.setObjectName("settingsButton")
+        settings_button.setToolTip("Settings")
+        settings_button.clicked.connect(self._on_open_settings)
+        header.addWidget(settings_button)
+        layout.addLayout(header)
+
+        layout.addWidget(self._nav_button("Memory", lambda: self.stack.setCurrentIndex(1)))
+        layout.addWidget(self._nav_button("Search", lambda: self.stack.setCurrentIndex(2)))
+
+        projects_label = QLabel("PROJECTS")
+        projects_label.setObjectName("sectionLabel")
+        layout.addWidget(projects_label)
 
         self.project_list = QListWidget()
         self.project_list.setObjectName("projectList")
@@ -301,14 +588,22 @@ class ChatWindow(QMainWindow):
         # on construction) — without this, opening the app fires
         # _on_project_selected for whichever project happens to be
         # first, announcing and dumping its brief before the user has
-        # done anything. Mouse-click selection (the primary way this
-        # sidebar is actually used) does not require focus, so this
-        # loses nothing real; only tab/arrow-key focus is disabled.
+        # done anything.
         self.project_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.refresh_projects()
         self.project_list.currentItemChanged.connect(self._on_project_selected)
         layout.addWidget(self.project_list)
+
+        add_folder = self._nav_button("+ Add Project Folder…", self._on_add_project_folder)
+        layout.addWidget(add_folder)
         return sidebar
+
+    @staticmethod
+    def _nav_button(text: str, on_click: Callable[[], None]) -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName("navButton")
+        button.clicked.connect(on_click)
+        return button
 
     def _build_chat_pane(self) -> QWidget:
         chat_pane = QWidget()
@@ -343,17 +638,21 @@ class ChatWindow(QMainWindow):
         scan_button = QPushButton("Scan folder…")
         scan_button.setObjectName("scanButton")
         scan_button.clicked.connect(self._on_scan_folder)
+        import_button = QPushButton("Import conversations…")
+        import_button.setObjectName("scanButton")
+        import_button.clicked.connect(self._on_import_chatgpt_export)
         input_row.addWidget(self.input_line)
         input_row.addWidget(send_button)
         input_row.addWidget(scan_button)
+        input_row.addWidget(import_button)
         layout.addWidget(input_bar)
         return chat_pane
 
     def refresh_projects(self) -> None:
         self.project_list.clear()
-        for row in self.store.list_projects(limit=200):
-            item = QListWidgetItem(row["name"])
-            item.setData(Qt.ItemDataRole.UserRole, row["project_id"])
+        for summary in self.service.list_projects(limit=200):
+            item = QListWidgetItem(summary.name)
+            item.setData(Qt.ItemDataRole.UserRole, summary.project_id)
             self.project_list.addItem(item)
 
     def add_message(self, text: str, *, is_user: bool) -> MessageBubble:
@@ -366,7 +665,7 @@ class ChatWindow(QMainWindow):
         return bubble
 
     def add_candidate_card(self, candidate: dict) -> CandidateCard:
-        card = CandidateCard(self.store, candidate)
+        card = CandidateCard(self.service, candidate)
         self._insert_row(card, is_user=False)
         return card
 
@@ -375,8 +674,7 @@ class ChatWindow(QMainWindow):
         # layout's own alignment flag — a QLabel with wordWrap can
         # otherwise report a stale (too-small) height the first time
         # it's placed with an alignment flag directly in a QVBoxLayout,
-        # visibly truncating multi-line text. Wrapping in its own row
-        # sizes it normally, with no such quirk.
+        # visibly truncating multi-line text.
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -405,65 +703,114 @@ class ChatWindow(QMainWindow):
                 widgets.append(found)
         return widgets
 
+    @_guarded("open project")
     def _on_project_selected(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
         if current is None:
             self.current_project_id = None
             return
+        self.stack.setCurrentIndex(0)
         self.current_project_id = current.data(Qt.ItemDataRole.UserRole)
         self.add_message(f"Now chatting about {current.text()}", is_user=False)
-        self.add_message(render_project_reentry_brief(self.store, self.current_project_id), is_user=False)
+        self.add_message(self.service.project_brief_text(self.current_project_id), is_user=False)
 
+    @_guarded("send message")
     def _on_submit_query(self) -> None:
         text = self.input_line.text().strip()
         if not text:
             return
         self.input_line.clear()
         self.add_message(text, is_user=True)
-        if self.current_project_id:
-            # Scoped to a selected project: the note is logged against
-            # it (DISCOVERY_PROTOCOL.md's "update the memory towards
-            # the project" ask), and the reply is that project's own
-            # freshly-recomputed re-entry brief — it now includes the
-            # note just logged, so the reply visibly reflects it.
-            self.store.add_project_event(self.current_project_id, "chat_note", text)
-            logger.info("gui: chat_note logged for project %s", self.current_project_id)
-            reply = render_project_reentry_brief(self.store, self.current_project_id)
-        else:
-            reply = submit_query(self.store, text)
-            logger.info("gui: submit_query(%r)", text)
+        reply = self.service.ask(text, project_id=self.current_project_id)
         self.add_message(reply, is_user=False)
 
+    @_guarded("scan folder")
     def _on_scan_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select a folder to scan")
         if not folder:
             return
         self.add_message(f"Scan {folder}", is_user=True)
-        result = classify_artifacts_against_projects(folder, self.store)
+        result = self.service.classify_folder(folder)
         logger.info(
-            "gui: start_scan(%s) -> %d artifact(s), %d candidate(s)",
+            "gui: scan_folder(%s) -> %d artifact(s), %d candidate(s)",
             folder, result.artifacts_registered, result.candidates_created,
         )
         self.add_message(
-            f"Registered {result.artifacts_registered} artifact(s): "
-            f"{result.candidates_created} candidate(s) proposed, "
-            f"{result.unclassified_count} unclassified, {len(result.skipped)} skipped",
+            f"Scanned that folder: found {result.artifacts_registered} file(s), "
+            f"{result.candidates_created} possible project match(es) to review below.",
             is_user=False,
         )
-        for candidate in list_candidate_details(self.store, "candidate"):
+        for candidate in self.service.list_artifact_candidates("candidate"):
             self.add_candidate_card(candidate)
+        self.refresh_projects()
+
+    @_guarded("add project folder")
+    def _on_add_project_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select a folder to add as a project source")
+        if not folder:
+            return
+        discovered = self.service.scan_projects(folder)
+        self.refresh_projects()
+        QMessageBox.information(
+            self, "Scan complete",
+            f"{len(discovered)} project(s) found in that folder. No files were moved or deleted.",
+        )
+
+    @_guarded("import conversations")
+    def _on_import_chatgpt_export(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Choose your ChatGPT export file", "", "JSON files (*.json)"
+        )
+        if not path:
+            return
+        count = self.service.import_chatgpt_export(path)
+        QMessageBox.information(
+            self, "Import complete", f"{count} conversation(s) imported."
+        )
+
+    def _on_open_settings(self) -> None:
+        dialog = SettingsDialog(self.service, self)
+        dialog.exec()
+        # Developer Mode may have just been toggled - candidate cards
+        # rendered after this point should reflect it; nothing already
+        # on screen needs to change retroactively.
 
 
-def run_gui(db_path: str | Path = ".memory-os/memory.db") -> int:
+def run_app(service: MemoryOSService) -> int:
+    """The desktop application's real entry point. Handles first-
+    launch onboarding, then opens the main window. `service` is
+    already initialized (its own constructor creates the database and
+    schema if missing) — no separate manual init step.
+    """
     app = QApplication.instance() or QApplication([])
     app.setFont(QFont("Segoe UI", 10))
-    store = MemoryStore(db_path)
-    window = ChatWindow(store)
-    window.resize(760, 640)
+
+    settings = _settings()
+    if not settings.value("onboarding_complete", False, type=bool):
+        onboarding = OnboardingDialog()
+        onboarding.exec()
+        settings.setValue("onboarding_complete", True)
+
+    window = MainWindow(service)
+    window.resize(900, 640)
     window.show()
-    try:
-        return app.exec()
-    finally:
-        store.close()
+    return app.exec()
 
 
-__all__ = ["CandidateCard", "ChatWindow", "MessageBubble", "run_gui"]
+# Backward-compatible alias: earlier builds called the main window
+# `ChatWindow`. Kept so any external/developer code importing that
+# name still works.
+ChatWindow = MainWindow
+
+
+__all__ = [
+    "CandidateCard",
+    "ChatWindow",
+    "MainWindow",
+    "MemoryPage",
+    "MessageBubble",
+    "OnboardingDialog",
+    "SearchPage",
+    "SettingsDialog",
+    "developer_mode_enabled",
+    "run_app",
+]
