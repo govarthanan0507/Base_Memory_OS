@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 
-from memory_os.logging_setup import configure_logging
+from memory_os.logging_setup import close_logging, configure_logging
 from memory_os.service import MemoryOSService, default_data_dir
 
 
@@ -26,6 +26,7 @@ def main() -> int:
         return run_app(service)
     finally:
         service.close()
+        close_logging()
 
 
 if __name__ == "__main__":

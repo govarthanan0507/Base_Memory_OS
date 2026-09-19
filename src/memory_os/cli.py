@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from .logging_setup import configure_logging, get_logger
+from .logging_setup import close_logging, configure_logging, get_logger
 from .research import ResearchSource
 from .research_pipeline import ingest_research_source
 from .service import MemoryOSService, default_data_dir
@@ -284,6 +284,7 @@ def main() -> int:
         raise
     finally:
         service.close()
+        close_logging()
     return 0
 
 

@@ -58,7 +58,10 @@ class ProjectClassificationTests(unittest.TestCase):
         finally:
             os.chmod(unreadable, 0o644)
 
-        self.assertIn(str(unreadable), result.skipped)
+        # Same resolved-root comparison as the symlink test above -
+        # the scan records paths relative to its own resolved root.
+        expected = str(Path(self.scan_dir).resolve() / "video_understanding_secret.md")
+        self.assertIn(expected, result.skipped)
         self.assertEqual(result.artifacts_registered, 1)
 
     def test_symlink_escaping_scan_root_is_skipped_not_followed(self):
@@ -75,7 +78,16 @@ class ProjectClassificationTests(unittest.TestCase):
         self.store.add_project(Project("Video Understanding", str(self.tmp_path / "video-understanding")))
         result = classify_artifacts_against_projects(self.scan_dir, self.store)
 
-        self.assertIn(str(link), result.skipped)
+        # The scan resolves its root before walking (required for the
+        # symlink-escape check itself), so every path it records is
+        # relative to that resolved root - compare against the same
+        # resolved form, not the raw `link` path. On most platforms
+        # these are identical strings; on Windows, tempfile can hand
+        # back an 8.3 short-form path (e.g. RUNNER~1) that `.resolve()`
+        # normalizes to its long form, so an unresolved comparison can
+        # legitimately differ in spelling while naming the same file.
+        expected = str(Path(self.scan_dir).resolve() / "escape_link.md")
+        self.assertIn(expected, result.skipped)
         self.assertEqual(result.artifacts_registered, 0)
 
     def test_missing_folder_raises_file_not_found(self):
